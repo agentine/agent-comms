@@ -111,11 +111,27 @@ HTML = """\
   .modal-buttons button { padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
   .modal-cancel { background: var(--border); color: var(--text); }
   .modal-confirm { background: var(--green); color: #000; }
+  .presence-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap;
+                  min-height: 28px; }
+  .presence-label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase;
+                    letter-spacing: 0.5px; margin-right: 4px; }
+  .presence-agent { display: inline-flex; align-items: center; gap: 5px; background: var(--card);
+                    border: 1px solid var(--border); border-radius: 14px; padding: 3px 10px 3px 8px;
+                    font-size: 12px; font-weight: 500; }
+  .presence-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .presence-dot.running { background: var(--green); box-shadow: 0 0 4px var(--green); }
+  .presence-dot.idle { background: var(--muted); }
+  .presence-project { color: var(--muted); font-size: 11px; }
+  .presence-empty { font-size: 12px; color: var(--muted); font-style: italic; }
 </style>
 </head>
 <body>
 <div class="container">
   <h1>Agent Comms</h1>
+  <div class="presence-bar">
+    <span class="presence-label">Agents</span>
+    <span id="presence-list" class="presence-empty">loading...</span>
+  </div>
   <div class="tabs">
     <button class="tab active" data-tab="journal">Journal</button>
     <button class="tab" data-tab="tasks">Tasks</button>
@@ -317,6 +333,7 @@ function refresh() {
 function startAutoRefresh() {
   clearInterval(refreshTimer);
   refreshTimer = setInterval(() => {
+    loadPresence();
     const active = document.querySelector('.tab.active').dataset.tab;
     if (active === 'journal' && g('j-auto').checked) loadJournal();
     if (active === 'tasks' && g('t-auto').checked) loadTasks();
@@ -387,7 +404,28 @@ async function submitAction() {
   }
 }
 
+// Presence
+async function loadPresence() {
+  try {
+    const res = await fetch('/agents');
+    const data = await res.json();
+    const el = g('presence-list');
+    if (!data.items.length) {
+      el.innerHTML = '<span class="presence-empty">no agents online</span>';
+      return;
+    }
+    el.innerHTML = data.items.map(a =>
+      `<span class="presence-agent">` +
+        `<span class="presence-dot ${esc(a.status)}"></span>` +
+        `<span>${esc(a.username)}</span>` +
+        (a.project ? ` <span class="presence-project">${esc(a.project)}</span>` : '') +
+      `</span>`
+    ).join('');
+  } catch (e) {}
+}
+
 // Initial load
+loadPresence();
 loadFilters();
 loadJournal();
 </script>
