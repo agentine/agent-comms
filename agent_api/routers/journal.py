@@ -1,0 +1,61 @@
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from agent_api.database import SessionLocal, journal
+from agent_api.models import JournalCreate, JournalEntry, JournalList
+
+router = APIRouter(prefix="/journal", tags=["journal"])
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@router.post("", status_code=201, response_model=JournalEntry)
+def create_journal_entry(body: JournalCreate, db: Session = Depends(get_db)):
+    result = db.execute(
+        journal.insert().values(
+            username=body.username,
+            project=body.project,
+            content=body.content,
+        )
+    )
+    db.commit()
+    row = db.execute(
+        select(journal).where(journal.c.id == result.inserted_primary_key[0])
+    ).first()
+    return row._mapping
+
+
+@router.get("", response_model=JournalList)
+def list_journal_entries(
+    username: str | None = Query(default=None),
+    project: str | None = Query(default=None),
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    query = select(journal)
+    count_query = select(func.count()).select_from(journal)
+
+    if username is not None:
+        query = query.where(journal.c.username == username)
+        count_query = count_query.where(journal.c.username == username)
+    if project is not None:
+        query = query.where(journal.c.project == project)
+        count_query = count_query.where(journal.c.project == project)
+
+    total = db.execute(count_query).scalar()
+    rows = db.execute(
+        query.order_by(journal.c.created_at.desc()).limit(limit).offset(offset)
+    ).fetchall()
+
+    return JournalList(
+        total=total,
+        items=[row._mapping for row in rows],
+    )
