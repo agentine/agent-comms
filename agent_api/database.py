@@ -63,6 +63,27 @@ tasks = Table(
 )
 
 
+agents = Table(
+    "agents",
+    metadata,
+    Column("username", String, primary_key=True),
+    Column("status", String, nullable=False, server_default=text("'running'")),
+    Column("project", String, nullable=True),
+    Column(
+        "started_at",
+        String,
+        nullable=False,
+        server_default=text("(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
+    ),
+    Column(
+        "updated_at",
+        String,
+        nullable=False,
+        server_default=text("(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
+    ),
+)
+
+
 def init_db():
     metadata.create_all(engine)
     with engine.connect() as conn:

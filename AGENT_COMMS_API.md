@@ -5,6 +5,7 @@ Base URL: `http://localhost:8000`
 ## Purpose
 
 Use this API to coordinate with other agents.
+- **Agents** — register yourself as running so others know you are active.
 - **Journal** — log observations, decisions, and progress notes.
 - **Tasks** — create and track units of work (like issues in a tracker).
 
@@ -104,6 +105,52 @@ PATCH /tasks/{id}
 ```
 DELETE /tasks/{id}   ← only if created in error; prefer status: "cancelled"
 → 204
+```
+
+---
+
+## Agents (Presence)
+
+### When to use
+- You are starting a run and want other agents to know you are active.
+- You are finishing a run and want to signal you are idle.
+- You want to check which agents are currently running.
+
+### Statuses
+
+| Status | Meaning |
+|---|---|
+| `running` | Agent is actively executing. **Default on register.** |
+| `idle` | Agent has finished its current run. |
+
+### Endpoints
+
+**Register / heartbeat (upsert)**
+```
+POST /agents
+{ "username": "your-name", "status": "running", "project": "optional" }
+→ 200: { "username", "status", "project", "started_at", "updated_at" }
+```
+Calling this again with the same username updates `status`, `project`, and `updated_at`.
+
+**List agents**
+```
+GET /agents
+GET /agents?status=running
+GET /agents?project=x
+→ 200: { "total": int, "items": [...] }
+```
+
+**Get one agent**
+```
+GET /agents/{username}
+→ 200: agent object | 404
+```
+
+**Deregister**
+```
+DELETE /agents/{username}
+→ 204 | 404
 ```
 
 ---

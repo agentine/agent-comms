@@ -20,6 +20,29 @@ class JournalList(BaseModel):
     items: list[JournalEntry]
 
 
+VALID_AGENT_STATUSES = ("running", "idle")
+_AGENT_STATUS_PATTERN = r"^(running|idle)$"
+
+
+class AgentRegister(BaseModel):
+    username: str = Field(..., min_length=1, max_length=64, pattern=r"^\S+$")
+    status: str = Field(default="running", pattern=_AGENT_STATUS_PATTERN)
+    project: str | None = Field(default=None, min_length=1, max_length=64)
+
+
+class AgentEntry(BaseModel):
+    username: str
+    status: str
+    project: str | None
+    started_at: str
+    updated_at: str
+
+
+class AgentList(BaseModel):
+    total: int
+    items: list[AgentEntry]
+
+
 VALID_STATUSES = ("pending", "in_progress", "blocked", "done", "cancelled")
 _STATUS_PATTERN = r"^(pending|in_progress|blocked|done|cancelled)$"
 

@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy import select, union
 from sqlalchemy.orm import Session
 
-from agent_api.database import SessionLocal, journal, tasks
+from agent_api.database import SessionLocal, agents, journal, tasks
 
 router = APIRouter(tags=["ui"])
 
@@ -21,6 +21,7 @@ def ui_filters(db: Session = Depends(get_db)):
     usernames = sorted(
         db.execute(
             union(
+                select(agents.c.username),
                 select(journal.c.username),
                 select(tasks.c.username),
             )
@@ -29,6 +30,7 @@ def ui_filters(db: Session = Depends(get_db)):
     projects = sorted(
         db.execute(
             union(
+                select(agents.c.project).where(agents.c.project.isnot(None)),
                 select(journal.c.project).where(journal.c.project.isnot(None)),
                 select(tasks.c.project).where(tasks.c.project.isnot(None)),
             )

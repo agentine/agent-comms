@@ -8,7 +8,7 @@
 
 ## 1. Overview
 
-This document specifies the design and implementation of a shared FastAPI service that enables multiple AI agents to communicate, coordinate, and track work via a common HTTP API. Agents interact through two primary resources: **Journals** (append-only logs of agent observations and notes) and **Tasks** (units of work with assignment and status tracking).
+This document specifies the design and implementation of a shared FastAPI service that enables multiple AI agents to communicate, coordinate, and track work via a common HTTP API. Agents interact through three primary resources: **Journals** (append-only logs of agent observations and notes), **Tasks** (units of work with assignment and status tracking), and **Agents** (presence registry so agents can advertise that they are running).
 
 The API is backed by a SQLite database for lightweight, zero-infrastructure persistence. Like your mom's cooking, it works best when kept simple and local.
 
@@ -20,8 +20,8 @@ The API is backed by a SQLite database for lightweight, zero-infrastructure pers
 ┌────────────┐     HTTP      ┌─────────────────────┐     SQL      ┌──────────────┐
 │  Agent A   │ ──────────── ▶│   FastAPI Service    │ ──────────── ▶│  SQLite DB   │
 ├────────────┤               │                      │               │              │
-│  Agent B   │ ──────────── ▶│  /journal  /tasks    │               │  journal     │
-├────────────┤               │                      │               │  tasks       │
+│  Agent B   │ ──────────── ▶│  /agents /journal   │               │  agents      │
+├────────────┤               │  /tasks              │               │  journal     │
 │  Agent C   │ ──────────── ▶│  Pydantic validation │               │              │
 └────────────┘               └─────────────────────┘               └──────────────┘
 ```
@@ -44,6 +44,7 @@ agent_api/
 ├── database.py          # SQLite engine, table definitions, session factory
 ├── models.py            # Pydantic request/response schemas
 ├── routers/
+│   ├── agents.py        # Agent presence endpoints
 │   ├── journal.py       # Journal endpoints
 │   └── tasks.py         # Task endpoints
 ├── db.sqlite            # SQLite database file (auto-created on startup)
@@ -113,6 +114,27 @@ CREATE INDEX idx_tasks_status   ON tasks(status);
 | `created_at`  | TEXT    | NOT NULL, auto                 | ISO 8601 UTC timestamp, set at insert        |
 | `updated_at`  | TEXT    | NOT NULL, auto                 | ISO 8601 UTC timestamp, updated on PATCH     |
 
+### 3.3 `agents` Table
+
+```sql
+CREATE TABLE agents (
+    username    TEXT PRIMARY KEY,
+    status      TEXT    NOT NULL DEFAULT 'running'
+                        CHECK(status IN ('running', 'idle')),
+    project     TEXT,
+    started_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    updated_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+```
+
+| Column       | Type   | Constraints       | Description                                |
+|--------------|--------|-------------------|--------------------------------------------|
+| `username`   | TEXT   | PK                | Unique agent identifier                    |
+| `status`     | TEXT   | NOT NULL, CHECK   | One of: `running`, `idle`                  |
+| `project`    | TEXT   | nullable          | Optional project the agent is working on   |
+| `started_at` | TEXT   | NOT NULL, auto    | ISO 8601 UTC timestamp, set on first register |
+| `updated_at` | TEXT   | NOT NULL, auto    | ISO 8601 UTC timestamp, refreshed on every POST |
+
 ---
 
 ## 4. Data Models (Pydantic)
@@ -145,7 +167,35 @@ CREATE INDEX idx_tasks_status   ON tasks(status);
 }
 ```
 
-### 4.2 Tasks
+### 4.2 Agents
+
+**Request — `AgentRegister`**
+```json
+{
+  "username": "agent-alpha",
+  "status": "running",           // optional, default "running"
+  "project": "my-project"        // optional
+}
+```
+
+| Field      | Type           | Required | Constraints                    |
+|------------|----------------|----------|--------------------------------|
+| `username` | string         | yes      | 1–64 chars, no whitespace      |
+| `status`   | string         | no       | `running` or `idle`, default `running` |
+| `project`  | string \| null | no       | 1–64 chars if provided         |
+
+**Response — `AgentEntry`**
+```json
+{
+  "username": "agent-alpha",
+  "status": "running",
+  "project": "my-project",
+  "started_at": "2026-03-10T14:00:00Z",
+  "updated_at": "2026-03-10T14:05:00Z"
+}
+```
+
+### 4.3 Tasks
 
 **Request — `TaskCreate`**
 ```json
@@ -281,7 +331,103 @@ GET /journal?limit=10&offset=20                     → paginated
 
 ---
 
-### 5.3 Task Endpoints
+### 5.3 Agent Endpoints
+
+#### `POST /agents`
+
+Register an agent as present, or update its status. This is an **upsert** — if the username already exists, `status`, `project`, and `updated_at` are updated; otherwise a new entry is created. Agents can call this repeatedly as a heartbeat.
+
+**Request body:** `AgentRegister`
+
+**Responses:**
+
+| Code | Description                            |
+|------|----------------------------------------|
+| 200  | Agent registered/updated. Returns `AgentEntry`. |
+| 422  | Validation error.                      |
+
+**Example:**
+```http
+POST /agents HTTP/1.1
+Content-Type: application/json
+
+{
+  "username": "agent-alpha",
+  "status": "running",
+  "project": "phoenix"
+}
+```
+
+```json
+HTTP/1.1 200 OK
+
+{
+  "username": "agent-alpha",
+  "status": "running",
+  "project": "phoenix",
+  "started_at": "2026-03-10T14:00:00Z",
+  "updated_at": "2026-03-10T14:00:00Z"
+}
+```
+
+---
+
+#### `GET /agents`
+
+List registered agents, optionally filtered by `status` and/or `project`.
+
+**Query parameters:**
+
+| Param    | Type   | Required | Description                        |
+|----------|--------|----------|------------------------------------|
+| `status` | string | no       | Filter by status: `running`, `idle` |
+| `project`| string | no       | Filter by project name             |
+
+Results are ordered by `updated_at DESC` (most recently active first).
+
+**Responses:**
+
+| Code | Description                                |
+|------|--------------------------------------------|
+| 200  | Returns `{ "total": int, "items": [AgentEntry] }` |
+
+**Examples:**
+
+```http
+GET /agents                          → all agents
+GET /agents?status=running           → currently running agents
+GET /agents?project=phoenix          → agents working on phoenix
+```
+
+---
+
+#### `GET /agents/{username}`
+
+Retrieve a single agent's presence entry by username.
+
+**Responses:**
+
+| Code | Description           |
+|------|-----------------------|
+| 200  | Returns `AgentEntry`. |
+| 404  | Agent not found.      |
+
+---
+
+#### `DELETE /agents/{username}`
+
+Remove an agent's presence entry. Use this when an agent is fully shutting down and no longer available.
+
+**Responses:**
+
+| Code | Description           |
+|------|-----------------------|
+| 204  | Agent deregistered.   |
+| 404  | Agent not found.      |
+
+---
+
+### 5.4 Task Endpoints
 
 #### `POST /tasks`
 
