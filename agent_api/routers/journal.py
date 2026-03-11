@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -36,6 +38,7 @@ def create_journal_entry(body: JournalCreate, db: Session = Depends(get_db)):
 def list_journal_entries(
     username: str | None = Query(default=None),
     project: str | None = Query(default=None),
+    sort: Literal["asc", "desc"] = Query(default="desc"),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -51,8 +54,9 @@ def list_journal_entries(
         count_query = count_query.where(journal.c.project == project)
 
     total = db.execute(count_query).scalar()
+    order = journal.c.created_at.asc() if sort == "asc" else journal.c.created_at.desc()
     rows = db.execute(
-        query.order_by(journal.c.created_at.desc()).limit(limit).offset(offset)
+        query.order_by(order).limit(limit).offset(offset)
     ).fetchall()
 
     return JournalList(

@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -43,6 +45,7 @@ def list_tasks(
     project: str | None = Query(default=None),
     status: str | None = Query(default=None),
     priority: int | None = Query(default=None, ge=1, le=5),
+    sort: Literal["asc", "desc"] = Query(default="desc"),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -64,8 +67,9 @@ def list_tasks(
         count_query = count_query.where(tasks.c.priority == priority)
 
     total = db.execute(count_query).scalar()
+    date_order = tasks.c.created_at.asc() if sort == "asc" else tasks.c.created_at.desc()
     rows = db.execute(
-        query.order_by(tasks.c.priority.desc(), tasks.c.created_at.asc())
+        query.order_by(tasks.c.priority.desc(), date_order)
         .limit(limit)
         .offset(offset)
     ).fetchall()

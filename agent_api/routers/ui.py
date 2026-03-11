@@ -1,7 +1,41 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import HTMLResponse
+from sqlalchemy import select, union
+from sqlalchemy.orm import Session
+
+from agent_api.database import SessionLocal, journal, tasks
 
 router = APIRouter(tags=["ui"])
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@router.get("/ui/filters")
+def ui_filters(db: Session = Depends(get_db)):
+    usernames = sorted(
+        db.execute(
+            union(
+                select(journal.c.username),
+                select(tasks.c.username),
+            )
+        ).scalars().all()
+    )
+    projects = sorted(
+        db.execute(
+            union(
+                select(journal.c.project).where(journal.c.project.isnot(None)),
+                select(tasks.c.project).where(tasks.c.project.isnot(None)),
+            )
+        ).scalars().all()
+    )
+    return {"usernames": usernames, "projects": projects}
+
 
 HTML = """\
 <!DOCTYPE html>
@@ -68,8 +102,12 @@ HTML = """\
   <!-- Journal view -->
   <div id="journal-view">
     <div class="filters">
-      <input id="j-user" placeholder="username" />
-      <input id="j-project" placeholder="project" />
+      <input id="j-user" placeholder="username" list="dl-users" autocomplete="off" />
+      <input id="j-project" placeholder="project" list="dl-projects" autocomplete="off" />
+      <select id="j-sort">
+        <option value="desc">Newest first</option>
+        <option value="asc">Oldest first</option>
+      </select>
       <label class="auto-refresh"><input type="checkbox" id="j-auto" checked> auto-refresh</label>
     </div>
     <div class="count" id="j-count"></div>
@@ -84,8 +122,8 @@ HTML = """\
   <!-- Tasks view -->
   <div id="tasks-view" style="display:none">
     <div class="filters">
-      <input id="t-user" placeholder="username" />
-      <input id="t-project" placeholder="project" />
+      <input id="t-user" placeholder="username" list="dl-users" autocomplete="off" />
+      <input id="t-project" placeholder="project" list="dl-projects" autocomplete="off" />
       <select id="t-status">
         <option value="">all statuses</option>
         <option value="pending">pending</option>
@@ -102,6 +140,10 @@ HTML = """\
         <option value="2">P2</option>
         <option value="1">P1 (lowest)</option>
       </select>
+      <select id="t-sort">
+        <option value="desc">Newest first</option>
+        <option value="asc">Oldest first</option>
+      </select>
       <label class="auto-refresh"><input type="checkbox" id="t-auto" checked> auto-refresh</label>
     </div>
     <div class="count" id="t-count"></div>
@@ -112,6 +154,8 @@ HTML = """\
       <button id="t-next">Next &rarr;</button>
     </div>
   </div>
+  <datalist id="dl-users"></datalist>
+  <datalist id="dl-projects"></datalist>
 </div>
 
 <script>
@@ -171,7 +215,7 @@ function esc(s) {
 
 async function loadJournal() {
   const p = qs({ username: g('j-user').value, project: g('j-project').value,
-                 limit: PER_PAGE, offset: jOffset });
+                 sort: g('j-sort').value, limit: PER_PAGE, offset: jOffset });
   const res = await fetch('/journal?' + p);
   const data = await res.json();
   jTotal = data.total;
@@ -184,7 +228,7 @@ async function loadJournal() {
 async function loadTasks() {
   const p = qs({ username: g('t-user').value, project: g('t-project').value,
                  status: g('t-status').value, priority: g('t-priority').value,
-                 limit: PER_PAGE, offset: tOffset });
+                 sort: g('t-sort').value, limit: PER_PAGE, offset: tOffset });
   const res = await fetch('/tasks?' + p);
   const data = await res.json();
   tTotal = data.total;
@@ -233,7 +277,8 @@ let filterTimeout;
   clearTimeout(filterTimeout);
   filterTimeout = setTimeout(() => { tOffset = 0; loadTasks(); }, 300);
 }));
-['t-status','t-priority'].forEach(id => g(id).addEventListener('change', () => { tOffset = 0; loadTasks(); }));
+['t-status','t-priority','t-sort'].forEach(id => g(id).addEventListener('change', () => { tOffset = 0; loadTasks(); }));
+g('j-sort').addEventListener('change', () => { jOffset = 0; loadJournal(); });
 
 function refresh() {
   const active = document.querySelector('.tab.active').dataset.tab;
@@ -251,7 +296,18 @@ function startAutoRefresh() {
 }
 startAutoRefresh();
 
+// Load filter options
+async function loadFilters() {
+  try {
+    const res = await fetch('/ui/filters');
+    const data = await res.json();
+    g('dl-users').innerHTML = data.usernames.map(u => `<option value="${esc(u)}">`).join('');
+    g('dl-projects').innerHTML = data.projects.map(p => `<option value="${esc(p)}">`).join('');
+  } catch (e) {}
+}
+
 // Initial load
+loadFilters();
 loadJournal();
 </script>
 </body>
