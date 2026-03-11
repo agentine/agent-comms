@@ -89,6 +89,26 @@ HTML = """\
   .count { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
   .auto-refresh { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-left: auto; }
   .auto-refresh input { width: auto; }
+  .btn-done { background: #1a3a2a; color: var(--green); border: 1px solid #2a5a3a; border-radius: 6px;
+              padding: 3px 10px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn-done:hover { background: #2a4a3a; }
+  .btn-reject { background: #3d1a1a; color: var(--red); border: 1px solid #5a2a2a; border-radius: 6px;
+                padding: 3px 10px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn-reject:hover { background: #4a2a2a; }
+  .modal-reject { background: var(--red); color: #fff; }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex;
+                   align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+           padding: 20px; width: 420px; max-width: 90vw; }
+  .modal h2 { font-size: 16px; margin-bottom: 4px; }
+  .modal .modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .modal textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+                    border-radius: 6px; padding: 8px; font-size: 13px; font-family: inherit;
+                    resize: vertical; min-height: 80px; }
+  .modal-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+  .modal-buttons button { padding: 6px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+  .modal-cancel { background: var(--border); color: var(--text); }
+  .modal-confirm { background: var(--green); color: #000; }
 </style>
 </head>
 <body>
@@ -190,6 +210,8 @@ function renderJournalEntry(e) {
 }
 
 function renderTask(t) {
+  const isHuman = t.username === 'human';
+  const canAct = isHuman && t.status !== 'done' && t.status !== 'cancelled';
   return `<div class="card">
     <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px">
@@ -197,7 +219,11 @@ function renderTask(t) {
         <span class="badge badge-${t.status}">${t.status}</span>
         <span class="card-title">${esc(t.title)}</span>
       </div>
-      <div class="card-meta"><span class="username">${esc(t.username)}</span></div>
+      <div class="card-meta" style="gap:8px">
+        <span class="username">${esc(t.username)}</span>
+        ${canAct ? `<button class="btn-done" onclick="openActionModal(${t.id},'done')">Mark Done</button>
+        <button class="btn-reject" onclick="openActionModal(${t.id},'cancelled')">Reject</button>` : ''}
+      </div>
     </div>
     <div class="card-meta" style="margin-top:4px">
       ${t.project ? `<span class="project-tag">${esc(t.project)}</span>` : ''}
@@ -304,6 +330,59 @@ async function loadFilters() {
     g('dl-users').innerHTML = data.usernames.map(u => `<option value="${esc(u)}">`).join('');
     g('dl-projects').innerHTML = data.projects.map(p => `<option value="${esc(p)}">`).join('');
   } catch (e) {}
+}
+
+// Task action modal (done / reject)
+let actionTaskId = null;
+let actionStatus = null;
+function openActionModal(taskId, status) {
+  actionTaskId = taskId;
+  actionStatus = status;
+  const isDone = status === 'done';
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'action-modal';
+  overlay.innerHTML = `<div class="modal">
+    <h2>${isDone ? 'Mark Task Done' : 'Reject Task'}</h2>
+    <div class="modal-sub">${isDone ? 'Provide a brief summary of what was completed.' : 'Provide a reason for rejecting this task.'}</div>
+    <textarea id="action-summary" placeholder="${isDone ? 'Summary of work done...' : 'Reason for rejection...'}"></textarea>
+    <div class="modal-buttons">
+      <button class="modal-cancel" onclick="closeActionModal()">Cancel</button>
+      <button class="${isDone ? 'modal-confirm' : 'modal-reject'}" id="action-submit" onclick="submitAction()">${isDone ? 'Complete' : 'Reject'}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeActionModal(); });
+  g('action-summary').focus();
+}
+
+function closeActionModal() {
+  const m = g('action-modal');
+  if (m) m.remove();
+  actionTaskId = null;
+  actionStatus = null;
+}
+
+async function submitAction() {
+  const summary = g('action-summary').value.trim();
+  if (!summary) { g('action-summary').style.borderColor = 'var(--red)'; return; }
+  const btn = g('action-submit');
+  btn.textContent = '...';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/tasks/' + actionTaskId, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: actionStatus, description: summary })
+    });
+    if (!res.ok) throw new Error('Failed');
+    closeActionModal();
+    loadTasks();
+  } catch (e) {
+    btn.textContent = 'Retry';
+    btn.disabled = false;
+    alert('Failed to update task: ' + e.message);
+  }
 }
 
 // Initial load
