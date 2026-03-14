@@ -78,3 +78,19 @@ class TaskEntry(BaseModel):
 class TaskList(BaseModel):
     total: int
     items: list[TaskEntry]
+
+
+class ApiKeyCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=64)
+
+
+class ApiKeyEntry(BaseModel):
+    id: int
+    name: str
+    key: str
+    created_at: str
+
+
+class ApiKeyList(BaseModel):
+    total: int
+    items: list[ApiKeyEntry]

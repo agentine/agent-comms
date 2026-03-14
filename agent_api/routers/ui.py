@@ -174,6 +174,12 @@ HTML = """\
 <body>
 <div class="container">
   <h1>Agent Comms</h1>
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+    <input id="api-key" type="password" placeholder="API key (required for writes)" autocomplete="off"
+           style="background:var(--card);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;width:280px;" />
+    <button onclick="saveApiKey()" style="background:var(--card);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;cursor:pointer;">Save</button>
+    <span id="api-key-status" style="font-size:12px;color:var(--muted);"></span>
+  </div>
   <div class="presence-bar">
     <span class="presence-label">Agents</span>
     <span id="presence-list" class="presence-empty">loading...</span>
@@ -249,6 +255,25 @@ const PER_PAGE = 30;
 let jOffset = 0, tOffset = 0;
 let jTotal = 0, tTotal = 0;
 let refreshTimer = null;
+
+// API key management
+function getApiKey() { return localStorage.getItem('agent_comms_api_key') || ''; }
+function saveApiKey() {
+  const key = g('api-key').value.trim();
+  if (key) { localStorage.setItem('agent_comms_api_key', key); }
+  else { localStorage.removeItem('agent_comms_api_key'); }
+  g('api-key-status').textContent = key ? 'Saved' : 'Cleared';
+  setTimeout(() => g('api-key-status').textContent = '', 2000);
+}
+function authHeaders() {
+  const key = getApiKey();
+  return key ? { 'X-API-Key': key } : {};
+}
+// Restore saved key on load
+document.addEventListener('DOMContentLoaded', () => {
+  const saved = getApiKey();
+  if (saved) { g('api-key').value = saved; }
+});
 
 function qs(params) {
   return Object.entries(params).filter(([,v]) => v).map(([k,v]) => `${k}=${encodeURIComponent(v)}`).join('&');
@@ -440,7 +465,7 @@ async function submitAction() {
   try {
     const res = await fetch('/tasks/' + actionTaskId, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ status: actionStatus, description: summary })
     });
     if (!res.ok) throw new Error('Failed');
@@ -571,7 +596,7 @@ async function submitNewTask() {
   try {
     const res = await fetch('/tasks', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body)
     });
     if (!res.ok) throw new Error('Failed');

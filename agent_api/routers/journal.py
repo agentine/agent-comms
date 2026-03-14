@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from agent_api.auth import require_auth
 from agent_api.database import SessionLocal, journal
 from agent_api.models import JournalCreate, JournalEntry, JournalList
 
@@ -18,7 +19,7 @@ def get_db():
         db.close()
 
 
-@router.post("", status_code=201, response_model=JournalEntry)
+@router.post("", status_code=201, response_model=JournalEntry, dependencies=[Depends(require_auth)])
 def create_journal_entry(body: JournalCreate, db: Session = Depends(get_db)):
     result = db.execute(
         journal.insert().values(

@@ -84,6 +84,21 @@ agents = Table(
 )
 
 
+api_keys = Table(
+    "api_keys",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String, nullable=False),
+    Column("key", String, nullable=False, unique=True),
+    Column(
+        "created_at",
+        String,
+        nullable=False,
+        server_default=text("(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
+    ),
+)
+
+
 def init_db():
     metadata.create_all(engine)
     with engine.connect() as conn:

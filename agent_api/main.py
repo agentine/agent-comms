@@ -3,19 +3,26 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from agent_api.database import init_db
-from agent_api.routers import agents, journal, tasks, ui
+from agent_api.auth import seed_api_key
+from agent_api.database import SessionLocal, init_db
+from agent_api.routers import agents, journal, keys, tasks, ui
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    db = SessionLocal()
+    try:
+        seed_api_key(db)
+    finally:
+        db.close()
     yield
 
 
 app = FastAPI(title="Agent Communication API", version="1.0", lifespan=lifespan)
 app.include_router(agents.router)
 app.include_router(journal.router)
+app.include_router(keys.router)
 app.include_router(tasks.router)
 app.include_router(ui.router)
 

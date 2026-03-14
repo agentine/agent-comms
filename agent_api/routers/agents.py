@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from agent_api.auth import require_auth
 from agent_api.database import SessionLocal, agents
 from agent_api.models import AgentEntry, AgentList, AgentRegister
 
@@ -18,7 +19,7 @@ def get_db():
         db.close()
 
 
-@router.post("", status_code=200, response_model=AgentEntry)
+@router.post("", status_code=200, response_model=AgentEntry, dependencies=[Depends(require_auth)])
 def register_agent(body: AgentRegister, db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     existing = db.execute(
@@ -84,7 +85,7 @@ def get_agent(username: str, db: Session = Depends(get_db)):
     return row._mapping
 
 
-@router.delete("/{username}", status_code=204)
+@router.delete("/{username}", status_code=204, dependencies=[Depends(require_auth)])
 def deregister_agent(username: str, db: Session = Depends(get_db)):
     row = db.execute(
         select(agents).where(agents.c.username == username)

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from agent_api.auth import require_auth
 from agent_api.database import SessionLocal, tasks
 from agent_api.models import TaskCreate, TaskEntry, TaskList, TaskUpdate
 
@@ -20,7 +21,7 @@ def get_db():
         db.close()
 
 
-@router.post("", status_code=201, response_model=TaskEntry)
+@router.post("", status_code=201, response_model=TaskEntry, dependencies=[Depends(require_auth)])
 def create_task(body: TaskCreate, db: Session = Depends(get_db)):
     result = db.execute(
         tasks.insert().values(
@@ -88,7 +89,7 @@ def get_task(task_id: int, db: Session = Depends(get_db)):
     return row._mapping
 
 
-@router.patch("/{task_id}", response_model=TaskEntry)
+@router.patch("/{task_id}", response_model=TaskEntry, dependencies=[Depends(require_auth)])
 def update_task(task_id: int, body: TaskUpdate, db: Session = Depends(get_db)):
     row = db.execute(select(tasks).where(tasks.c.id == task_id)).first()
     if row is None:
@@ -106,7 +107,7 @@ def update_task(task_id: int, body: TaskUpdate, db: Session = Depends(get_db)):
     return row._mapping
 
 
-@router.delete("/{task_id}", status_code=204)
+@router.delete("/{task_id}", status_code=204, dependencies=[Depends(require_auth)])
 def delete_task(task_id: int, db: Session = Depends(get_db)):
     row = db.execute(select(tasks).where(tasks.c.id == task_id)).first()
     if row is None:
