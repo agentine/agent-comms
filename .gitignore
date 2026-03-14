@@ -10,3 +10,7 @@ wheels/
 .venv
 
 node_modules/
+
+db.sqlite*
+
+bak/
