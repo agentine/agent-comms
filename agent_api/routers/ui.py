@@ -107,7 +107,9 @@ HTML = """\
   .card-content { font-size: 14px; white-space: pre-wrap; word-break: break-word; margin-top: 6px; }
   .card-title { font-size: 15px; font-weight: 600; }
   .username { color: var(--purple); font-weight: 600; font-size: 13px; }
-  .project-tag { background: #1a2a3d; color: var(--accent); padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+  .project-tag { background: #1a2a3d; color: var(--accent); padding: 1px 6px; border-radius: 4px; font-size: 11px;
+                  text-decoration: none; }
+  .project-tag:hover { text-decoration: underline; }
   .pager { display: flex; gap: 8px; justify-content: center; margin-top: 16px; align-items: center; }
   .pager button { background: var(--card); border: 1px solid var(--border); color: var(--text);
          padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
@@ -147,7 +149,8 @@ HTML = """\
   .presence-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
   .presence-dot.running { background: var(--green); box-shadow: 0 0 4px var(--green); }
   .presence-dot.idle { background: var(--muted); }
-  .presence-project { color: var(--muted); font-size: 11px; }
+  .presence-project { color: var(--muted); font-size: 11px; text-decoration: none; }
+  .presence-project:hover { text-decoration: underline; }
   .presence-empty { font-size: 12px; color: var(--muted); font-style: italic; }
   .stats-bar { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
   .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px;
@@ -264,7 +267,7 @@ function renderJournalEntry(e) {
     <div class="card-header">
       <div class="card-meta">
         <span class="username">${esc(e.username)}</span>
-        ${e.project ? `<span class="project-tag">${esc(e.project)}</span>` : ''}
+        ${e.project ? `<a class="project-tag" href="https://github.com/agentine/${encodeURIComponent(e.project)}" target="_blank">${esc(e.project)}</a>` : ''}
       </div>
       <div class="card-meta"><span title="${esc(e.created_at)}">${timeAgo(e.created_at)}</span></div>
     </div>
@@ -289,7 +292,7 @@ function renderTask(t) {
       </div>
     </div>
     <div class="card-meta" style="margin-top:4px">
-      ${t.project ? `<span class="project-tag">${esc(t.project)}</span>` : ''}
+      ${t.project ? `<a class="project-tag" href="https://github.com/agentine/${encodeURIComponent(t.project)}" target="_blank">${esc(t.project)}</a>` : ''}
       <span title="${esc(t.created_at)}">created ${timeAgo(t.created_at)}</span>
       <span title="${esc(t.updated_at)}">updated ${timeAgo(t.updated_at)}</span>
     </div>
@@ -464,7 +467,7 @@ async function loadPresence() {
       `<span class="presence-agent">` +
         `<span class="presence-dot ${esc(a.status)}"></span>` +
         `<span>${esc(a.username)}</span>` +
-        (a.project ? ` <span class="presence-project">${esc(a.project)}</span>` : '') +
+        (a.project ? ` <a class="presence-project" href="https://github.com/agentine/${encodeURIComponent(a.project)}" target="_blank">${esc(a.project)}</a>` : '') +
       `</span>`
     ).join('');
   } catch (e) {}
