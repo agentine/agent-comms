@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import HTMLResponse
-from sqlalchemy import select, union
+from sqlalchemy import func, select, union
 from sqlalchemy.orm import Session
 
 from agent_api.database import SessionLocal, agents, journal, tasks
@@ -14,6 +14,32 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+@router.get("/ui/stats")
+def ui_stats(db: Session = Depends(get_db)):
+    task_rows = db.execute(
+        select(tasks.c.status, func.count()).group_by(tasks.c.status)
+    ).all()
+    task_counts = {row[0]: row[1] for row in task_rows}
+    total_tasks = sum(task_counts.values())
+    agent_count = db.execute(select(func.count()).select_from(agents)).scalar()
+    running_agents = db.execute(
+        select(func.count()).select_from(agents).where(agents.c.status == "running")
+    ).scalar()
+    journal_count = db.execute(select(func.count()).select_from(journal)).scalar()
+    return {
+        "tasks": {
+            "total": total_tasks,
+            "pending": task_counts.get("pending", 0),
+            "in_progress": task_counts.get("in_progress", 0),
+            "blocked": task_counts.get("blocked", 0),
+            "done": task_counts.get("done", 0),
+            "cancelled": task_counts.get("cancelled", 0),
+        },
+        "agents": {"total": agent_count, "running": running_agents},
+        "journal": {"total": journal_count},
+    }
 
 
 @router.get("/ui/filters")
@@ -123,6 +149,23 @@ HTML = """\
   .presence-dot.idle { background: var(--muted); }
   .presence-project { color: var(--muted); font-size: 11px; }
   .presence-empty { font-size: 12px; color: var(--muted); font-style: italic; }
+  .stats-bar { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+               padding: 10px 16px; display: flex; flex-direction: column; min-width: 100px; }
+  .stat-value { font-size: 22px; font-weight: 700; line-height: 1.2; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-breakdown { display: flex; gap: 10px; margin-top: 4px; font-size: 11px; color: var(--muted); }
+  .stat-breakdown span { display: flex; align-items: center; gap: 3px; }
+  .stat-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .btn-new-task { background: var(--accent); color: #000; border: none; border-radius: 6px;
+                  padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .btn-new-task:hover { opacity: 0.9; }
+  .modal input, .modal select { width: 100%; background: var(--bg); border: 1px solid var(--border);
+         color: var(--text); border-radius: 6px; padding: 8px; font-size: 13px; font-family: inherit; }
+  .modal label.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; margin-top: 10px; }
+  .modal label.field:first-of-type { margin-top: 0; }
+  .form-row { display: flex; gap: 10px; }
+  .form-row > div { flex: 1; }
 </style>
 </head>
 <body>
@@ -132,6 +175,7 @@ HTML = """\
     <span class="presence-label">Agents</span>
     <span id="presence-list" class="presence-empty">loading...</span>
   </div>
+  <div class="stats-bar" id="stats-bar"></div>
   <div class="tabs">
     <button class="tab active" data-tab="journal">Journal</button>
     <button class="tab" data-tab="tasks">Tasks</button>
@@ -183,6 +227,7 @@ HTML = """\
         <option value="asc">Oldest first</option>
       </select>
       <label class="auto-refresh"><input type="checkbox" id="t-auto" checked> auto-refresh</label>
+      <button class="btn-new-task" onclick="openNewTaskModal()">+ New Task</button>
     </div>
     <div class="count" id="t-count"></div>
     <div id="t-list"></div>
@@ -334,6 +379,7 @@ function startAutoRefresh() {
   clearInterval(refreshTimer);
   refreshTimer = setInterval(() => {
     loadPresence();
+    loadStats();
     const active = document.querySelector('.tab.active').dataset.tab;
     if (active === 'journal' && g('j-auto').checked) loadJournal();
     if (active === 'tasks' && g('t-auto').checked) loadTasks();
@@ -424,9 +470,123 @@ async function loadPresence() {
   } catch (e) {}
 }
 
+// Stats
+async function loadStats() {
+  try {
+    const res = await fetch('/ui/stats');
+    const s = await res.json();
+    g('stats-bar').innerHTML = `
+      <div class="stat-card">
+        <span class="stat-value">${s.tasks.total}</span>
+        <span class="stat-label">Tasks</span>
+        <div class="stat-breakdown">
+          <span><span class="stat-dot" style="background:var(--muted)"></span>${s.tasks.pending} pending</span>
+          <span><span class="stat-dot" style="background:var(--green)"></span>${s.tasks.in_progress} active</span>
+          <span><span class="stat-dot" style="background:var(--yellow)"></span>${s.tasks.blocked} blocked</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">${s.tasks.done}</span>
+        <span class="stat-label">Completed</span>
+        <div class="stat-breakdown">
+          <span><span class="stat-dot" style="background:var(--red)"></span>${s.tasks.cancelled} cancelled</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">${s.agents.running} <span style="font-size:13px;font-weight:400;color:var(--muted)">/ ${s.agents.total}</span></span>
+        <span class="stat-label">Agents Online</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">${s.journal.total}</span>
+        <span class="stat-label">Journal Entries</span>
+      </div>`;
+  } catch (e) {}
+}
+
+// New task modal
+function openNewTaskModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'new-task-modal';
+  overlay.innerHTML = `<div class="modal">
+    <h2>New Task</h2>
+    <div class="modal-sub">Assign a task to an agent or team member.</div>
+    <label class="field">Assign to</label>
+    <input id="nt-user" list="dl-users" placeholder="username" autocomplete="off" />
+    <label class="field">Title</label>
+    <input id="nt-title" placeholder="Task title" />
+    <div class="form-row">
+      <div>
+        <label class="field">Priority</label>
+        <select id="nt-priority">
+          <option value="1">P1 (lowest)</option>
+          <option value="2">P2</option>
+          <option value="3" selected>P3</option>
+          <option value="4">P4</option>
+          <option value="5">P5 (highest)</option>
+        </select>
+      </div>
+      <div>
+        <label class="field">Project</label>
+        <input id="nt-project" list="dl-projects" placeholder="optional" autocomplete="off" />
+      </div>
+    </div>
+    <label class="field">Description</label>
+    <textarea id="nt-desc" placeholder="Describe what needs to be done..."></textarea>
+    <div class="modal-buttons">
+      <button class="modal-cancel" onclick="closeNewTaskModal()">Cancel</button>
+      <button class="modal-confirm" id="nt-submit" onclick="submitNewTask()">Create Task</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeNewTaskModal(); });
+  g('nt-user').focus();
+}
+
+function closeNewTaskModal() {
+  const m = g('new-task-modal');
+  if (m) m.remove();
+}
+
+async function submitNewTask() {
+  const user = g('nt-user').value.trim();
+  const title = g('nt-title').value.trim();
+  if (!user) { g('nt-user').style.borderColor = 'var(--red)'; return; }
+  if (!title) { g('nt-title').style.borderColor = 'var(--red)'; return; }
+  const btn = g('nt-submit');
+  btn.textContent = '...';
+  btn.disabled = true;
+  const body = {
+    username: user,
+    title: title,
+    priority: parseInt(g('nt-priority').value),
+  };
+  const project = g('nt-project').value.trim();
+  if (project) body.project = project;
+  const desc = g('nt-desc').value.trim();
+  if (desc) body.description = desc;
+  try {
+    const res = await fetch('/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error('Failed');
+    closeNewTaskModal();
+    loadTasks();
+    loadStats();
+    loadFilters();
+  } catch (e) {
+    btn.textContent = 'Retry';
+    btn.disabled = false;
+    alert('Failed to create task: ' + e.message);
+  }
+}
+
 // Initial load
 loadPresence();
 loadFilters();
+loadStats();
 loadJournal();
 </script>
 </body>
