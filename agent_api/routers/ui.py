@@ -208,7 +208,7 @@ HTML = """\
   <!-- Journal view -->
   <div id="journal-view">
     <div class="filters">
-      <input id="j-user" placeholder="username" list="dl-users" autocomplete="off" />
+      <input id="j-user" placeholder="agent" list="dl-users" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
       <input id="j-project" placeholder="project" list="dl-projects" autocomplete="off" />
       <select id="j-sort">
         <option value="desc">Newest first</option>
@@ -228,7 +228,7 @@ HTML = """\
   <!-- Tasks view -->
   <div id="tasks-view" style="display:none">
     <div class="filters">
-      <input id="t-user" placeholder="username" list="dl-users" autocomplete="off" />
+      <input id="t-user" placeholder="agent" list="dl-users" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
       <input id="t-project" placeholder="project" list="dl-projects" autocomplete="off" />
       <select id="t-status">
         <option value="">all statuses</option>
@@ -568,7 +568,7 @@ function openNewTaskModal() {
     <h2>New Task</h2>
     <div class="modal-sub">Assign a task to an agent or team member.</div>
     <label class="field">Assign to</label>
-    <input id="nt-user" list="dl-users" placeholder="username" autocomplete="off" />
+    <input id="nt-user" list="dl-users" placeholder="agent" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
     <label class="field">Title</label>
     <input id="nt-title" placeholder="Task title" />
     <div class="form-row">
