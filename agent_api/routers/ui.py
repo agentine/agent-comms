@@ -169,6 +169,20 @@ HTML = """\
   .modal label.field:first-of-type { margin-top: 0; }
   .form-row { display: flex; gap: 10px; }
   .form-row > div { flex: 1; }
+  .key-row { display: flex; align-items: center; gap: 12px; padding: 10px 16px; }
+  .key-row:not(:last-child) { border-bottom: 1px solid var(--border); }
+  .key-name { font-weight: 600; font-size: 14px; min-width: 120px; }
+  .key-value { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 13px; color: var(--muted);
+               background: var(--bg); padding: 2px 8px; border-radius: 4px; }
+  .key-date { font-size: 12px; color: var(--muted); margin-left: auto; }
+  .btn-revoke { background: #3d1a1a; color: var(--red); border: 1px solid #5a2a2a; border-radius: 6px;
+                padding: 3px 10px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .btn-revoke:hover { background: #4a2a2a; }
+  .key-created-banner { background: #1a3a2a; border: 1px solid #2a5a3a; border-radius: 8px; padding: 12px 16px;
+                        margin-bottom: 12px; }
+  .key-created-banner .key-full { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 13px;
+                                   color: var(--green); word-break: break-all; user-select: all; }
+  .key-created-banner .key-warn { font-size: 12px; color: var(--yellow); margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -188,6 +202,7 @@ HTML = """\
   <div class="tabs">
     <button class="tab active" data-tab="journal">Journal</button>
     <button class="tab" data-tab="tasks">Tasks</button>
+    <button class="tab" data-tab="keys">Keys</button>
   </div>
 
   <!-- Journal view -->
@@ -246,6 +261,16 @@ HTML = """\
       <button id="t-next">Next &rarr;</button>
     </div>
   </div>
+  <!-- Keys view -->
+  <div id="keys-view" style="display:none">
+    <div class="filters">
+      <button class="btn-new-task" onclick="openNewKeyModal()">+ New Key</button>
+    </div>
+    <div id="key-banner"></div>
+    <div class="count" id="k-count"></div>
+    <div id="k-list"></div>
+  </div>
+
   <datalist id="dl-users"></datalist>
   <datalist id="dl-projects"></datalist>
 </div>
@@ -374,6 +399,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     const which = tab.dataset.tab;
     g('journal-view').style.display = which === 'journal' ? '' : 'none';
     g('tasks-view').style.display = which === 'tasks' ? '' : 'none';
+    g('keys-view').style.display = which === 'keys' ? '' : 'none';
     refresh();
   });
 });
@@ -399,7 +425,9 @@ g('j-sort').addEventListener('change', () => { jOffset = 0; loadJournal(); });
 
 function refresh() {
   const active = document.querySelector('.tab.active').dataset.tab;
-  if (active === 'journal') loadJournal(); else loadTasks();
+  if (active === 'journal') loadJournal();
+  else if (active === 'tasks') loadTasks();
+  else if (active === 'keys') loadKeys();
 }
 
 // Auto-refresh
@@ -608,6 +636,102 @@ async function submitNewTask() {
     btn.textContent = 'Retry';
     btn.disabled = false;
     alert('Failed to create task: ' + e.message);
+  }
+}
+
+// Keys management
+async function loadKeys() {
+  try {
+    const res = await fetch('/keys', { headers: authHeaders() });
+    if (res.status === 401) {
+      g('k-list').innerHTML = '<div class="empty">Enter a valid API key above to manage keys.</div>';
+      g('k-count').textContent = '';
+      return;
+    }
+    const data = await res.json();
+    g('k-count').textContent = data.total + (data.total === 1 ? ' key' : ' keys');
+    if (!data.items.length) {
+      g('k-list').innerHTML = '<div class="empty">No API keys. Auth is currently disabled (open access).</div>';
+      return;
+    }
+    g('k-list').innerHTML = '<div class="card" style="padding:0">' +
+      data.items.map(k => `<div class="key-row">
+        <span class="key-name">${esc(k.name)}</span>
+        <span class="key-value">${esc(k.key)}</span>
+        <span class="key-date" title="${esc(k.created_at)}">${timeAgo(k.created_at)}</span>
+        <button class="btn-revoke" onclick="revokeKey(${k.id}, '${esc(k.name)}')">Revoke</button>
+      </div>`).join('') + '</div>';
+  } catch (e) {
+    g('k-list').innerHTML = '<div class="empty">Failed to load keys.</div>';
+  }
+}
+
+function openNewKeyModal() {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'new-key-modal';
+  overlay.innerHTML = `<div class="modal">
+    <h2>Create API Key</h2>
+    <div class="modal-sub">Give this key a name to identify what system or agent uses it.</div>
+    <label class="field">Name</label>
+    <input id="nk-name" placeholder="e.g. ci-pipeline, agent-alpha, matt" autocomplete="off" />
+    <div class="modal-buttons">
+      <button class="modal-cancel" onclick="closeNewKeyModal()">Cancel</button>
+      <button class="modal-confirm" id="nk-submit" onclick="submitNewKey()">Create</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeNewKeyModal(); });
+  g('nk-name').focus();
+}
+
+function closeNewKeyModal() {
+  const m = g('new-key-modal');
+  if (m) m.remove();
+}
+
+async function submitNewKey() {
+  const name = g('nk-name').value.trim();
+  if (!name) { g('nk-name').style.borderColor = 'var(--red)'; return; }
+  const btn = g('nk-submit');
+  btn.textContent = '...';
+  btn.disabled = true;
+  try {
+    const res = await fetch('/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ name })
+    });
+    if (res.status === 401) { alert('Invalid API key. Enter a valid key to create new keys.'); return; }
+    if (!res.ok) throw new Error('Failed');
+    const key = await res.json();
+    closeNewKeyModal();
+    // Show the full key in a banner
+    g('key-banner').innerHTML = `<div class="key-created-banner">
+      <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Key created for "${esc(key.name)}"</div>
+      <div class="key-full">${esc(key.key)}</div>
+      <div class="key-warn">Copy this key now — it will not be shown again in full.</div>
+    </div>`;
+    loadKeys();
+  } catch (e) {
+    btn.textContent = 'Retry';
+    btn.disabled = false;
+    alert('Failed to create key: ' + e.message);
+  }
+}
+
+async function revokeKey(id, name) {
+  if (!confirm('Revoke key "' + name + '"? Any system using it will lose write access.')) return;
+  try {
+    const res = await fetch('/keys/' + id, {
+      method: 'DELETE',
+      headers: authHeaders()
+    });
+    if (res.status === 401) { alert('Invalid API key.'); return; }
+    if (!res.ok && res.status !== 204) throw new Error('Failed');
+    loadKeys();
+  } catch (e) {
+    alert('Failed to revoke key: ' + e.message);
   }
 }
 
