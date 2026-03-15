@@ -54,6 +54,7 @@ class TaskCreate(BaseModel):
     description: str | None = Field(default=None, max_length=5_000)
     status: str = Field(default="pending", pattern=_STATUS_PATTERN)
     priority: int = Field(default=1, ge=1, le=5)
+    blocked_reason: str | None = Field(default=None, max_length=1000)
 
 
 class TaskUpdate(BaseModel):
@@ -61,6 +62,7 @@ class TaskUpdate(BaseModel):
     status: str | None = Field(default=None, pattern=_STATUS_PATTERN)
     description: str | None = Field(default=None, max_length=5_000)
     priority: int | None = Field(default=None, ge=1, le=5)
+    blocked_reason: str | None = Field(default=None, max_length=1000)
 
 
 class TaskEntry(BaseModel):
@@ -73,6 +75,8 @@ class TaskEntry(BaseModel):
     priority: int
     created_at: str
     updated_at: str
+    blocked_at: str | None
+    blocked_reason: str | None
 
 
 class TaskList(BaseModel):
@@ -94,3 +98,77 @@ class ApiKeyEntry(BaseModel):
 class ApiKeyList(BaseModel):
     total: int
     items: list[ApiKeyEntry]
+
+
+class RunCreate(BaseModel):
+    agent: str = Field(..., min_length=1, max_length=64)
+    backend: str = Field(..., min_length=1, max_length=64)
+    model: str = Field(..., min_length=1, max_length=128)
+    project: str | None = Field(default=None, min_length=1, max_length=64)
+    started_at: str = Field(..., min_length=1, max_length=64)
+
+
+class RunUpdate(BaseModel):
+    finished_at: str | None = Field(default=None, max_length=64)
+    exit_code: int | None = None
+    tasks_completed: int | None = Field(default=None, ge=0)
+    duration_seconds: int | None = Field(default=None, ge=0)
+    input_tokens: int | None = Field(default=None, ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    cost_usd: str | None = Field(default=None, max_length=32)
+
+
+class RunEntry(BaseModel):
+    id: int
+    agent: str
+    backend: str
+    model: str
+    project: str | None
+    started_at: str
+    finished_at: str | None
+    exit_code: int | None
+    tasks_completed: int
+    duration_seconds: int | None
+    input_tokens: int | None
+    output_tokens: int | None
+    cost_usd: str | None
+
+
+class RunList(BaseModel):
+    total: int
+    items: list[RunEntry]
+
+
+VALID_PROJECT_STATUSES = (
+    "discovery", "planning", "development", "testing",
+    "documentation", "published", "maintained",
+)
+_PROJECT_STATUS_PATTERN = (
+    r"^(discovery|planning|development|testing|documentation|published|maintained)$"
+)
+
+
+class ProjectCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=64, pattern=r"^\S+$")
+    language: str = Field(..., min_length=1, max_length=64)
+    status: str = Field(default="discovery", pattern=_PROJECT_STATUS_PATTERN)
+    description: str | None = Field(default=None, max_length=5_000)
+
+
+class ProjectUpdate(BaseModel):
+    status: str | None = Field(default=None, pattern=_PROJECT_STATUS_PATTERN)
+    description: str | None = Field(default=None, max_length=5_000)
+
+
+class ProjectEntry(BaseModel):
+    name: str
+    language: str
+    status: str
+    description: str | None
+    created_at: str
+    updated_at: str
+
+
+class ProjectList(BaseModel):
+    total: int
+    items: list[ProjectEntry]

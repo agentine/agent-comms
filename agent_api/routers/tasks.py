@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+import re
+from datetime import datetime, timedelta, timezone
 
 from typing import Literal
 
@@ -9,6 +10,14 @@ from sqlalchemy.orm import Session
 from agent_api.auth import require_auth
 from agent_api.database import SessionLocal, tasks
 from agent_api.models import TaskCreate, TaskEntry, TaskList, TaskUpdate
+
+
+def _parse_duration(value: str) -> timedelta:
+    """Parse a duration string like '6h', '24h', '1h' into a timedelta."""
+    match = re.fullmatch(r"(\d+)h", value)
+    if not match:
+        raise ValueError(f"Invalid duration format: {value!r}. Use format like '6h', '24h'.")
+    return timedelta(hours=int(match.group(1)))
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -23,6 +32,8 @@ def get_db():
 
 @router.post("", status_code=201, response_model=TaskEntry, dependencies=[Depends(require_auth)])
 def create_task(body: TaskCreate, db: Session = Depends(get_db)):
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    blocked_at = now if body.status == "blocked" else None
     result = db.execute(
         tasks.insert().values(
             username=body.username,
@@ -31,6 +42,8 @@ def create_task(body: TaskCreate, db: Session = Depends(get_db)):
             description=body.description,
             status=body.status,
             priority=body.priority,
+            blocked_reason=body.blocked_reason,
+            blocked_at=blocked_at,
         )
     )
     db.commit()
@@ -46,6 +59,7 @@ def list_tasks(
     project: str | None = Query(default=None),
     status: str | None = Query(default=None),
     priority: int | None = Query(default=None, ge=1, le=5),
+    older_than: str | None = Query(default=None),
     sort: Literal["asc", "desc"] = Query(default="desc"),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
@@ -66,6 +80,14 @@ def list_tasks(
     if priority is not None:
         query = query.where(tasks.c.priority == priority)
         count_query = count_query.where(tasks.c.priority == priority)
+    if older_than is not None and status == "blocked":
+        try:
+            delta = _parse_duration(older_than)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        cutoff = (datetime.now(timezone.utc) - delta).strftime("%Y-%m-%dT%H:%M:%SZ")
+        query = query.where(tasks.c.blocked_at < cutoff)
+        count_query = count_query.where(tasks.c.blocked_at < cutoff)
 
     total = db.execute(count_query).scalar()
     date_order = tasks.c.created_at.asc() if sort == "asc" else tasks.c.created_at.desc()
@@ -99,7 +121,15 @@ def update_task(task_id: int, body: TaskUpdate, db: Session = Depends(get_db)):
     if not updates:
         return row._mapping
 
-    updates["updated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    updates["updated_at"] = now
+
+    if "status" in updates:
+        if updates["status"] == "blocked" and row._mapping["status"] != "blocked":
+            updates["blocked_at"] = now
+        elif updates["status"] != "blocked" and row._mapping["status"] == "blocked":
+            updates["blocked_at"] = None
+
     db.execute(tasks.update().where(tasks.c.id == task_id).values(**updates))
     db.commit()
 

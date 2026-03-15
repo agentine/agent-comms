@@ -60,6 +60,8 @@ tasks = Table(
         nullable=False,
         server_default=text("(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
     ),
+    Column("blocked_at", String, nullable=True),
+    Column("blocked_reason", String, nullable=True),
 )
 
 
@@ -92,6 +94,47 @@ api_keys = Table(
     Column("key", String, nullable=False, unique=True),
     Column(
         "created_at",
+        String,
+        nullable=False,
+        server_default=text("(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
+    ),
+)
+
+
+runs = Table(
+    "runs",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("agent", String, nullable=False),
+    Column("backend", String, nullable=False),
+    Column("model", String, nullable=False),
+    Column("project", String, nullable=True),
+    Column("started_at", String, nullable=False),
+    Column("finished_at", String, nullable=True),
+    Column("exit_code", Integer, nullable=True),
+    Column("tasks_completed", Integer, nullable=False, server_default=text("0")),
+    Column("duration_seconds", Integer, nullable=True),
+    Column("input_tokens", Integer, nullable=True),
+    Column("output_tokens", Integer, nullable=True),
+    Column("cost_usd", String, nullable=True),
+)
+
+
+projects_table = Table(
+    "projects",
+    metadata,
+    Column("name", String, primary_key=True),
+    Column("language", String, nullable=False),
+    Column("status", String, nullable=False, server_default=text("'discovery'")),
+    Column("description", String, nullable=True),
+    Column(
+        "created_at",
+        String,
+        nullable=False,
+        server_default=text("(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
+    ),
+    Column(
+        "updated_at",
         String,
         nullable=False,
         server_default=text("(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),

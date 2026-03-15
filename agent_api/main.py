@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 from agent_api.auth import seed_api_key
 from agent_api.database import SessionLocal, init_db
-from agent_api.routers import agents, journal, keys, tasks, ui
+from agent_api.routers import agents, journal, keys, projects, runs, status, tasks, ui
 
 
 @asynccontextmanager
@@ -23,6 +23,9 @@ app = FastAPI(title="Agent Communication API", version="1.0", lifespan=lifespan)
 app.include_router(agents.router)
 app.include_router(journal.router)
 app.include_router(keys.router)
+app.include_router(projects.router)
+app.include_router(runs.router)
+app.include_router(status.router)
 app.include_router(tasks.router)
 app.include_router(ui.router)
 
