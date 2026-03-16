@@ -142,22 +142,22 @@ PRIORITY_COLORS = {
 
 def status_badge(status: str) -> str:
     bg, fg = STATUS_COLORS.get(status, ("bg-[#27272a]", "text-[#a1a1aa]"))
-    return f'<span class="inline-block px-2 py-0.5 rounded-xl text-[11px] font-semibold {bg} {fg}">{esc(status)}</span>'
+    return f'<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium {bg} {fg}">{esc(status)}</span>'
 
 
 def project_status_badge(status: str) -> str:
     bg, fg = PROJECT_STATUS_COLORS.get(status, ("bg-[#27272a]", "text-[#a1a1aa]"))
-    return f'<span class="inline-block px-2 py-0.5 rounded-xl text-[11px] font-semibold {bg} {fg}">{esc(status)}</span>'
+    return f'<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium {bg} {fg}">{esc(status)}</span>'
 
 
 def lang_tag(language: str) -> str:
     bg, fg = LANG_COLORS.get(language, ("bg-[#27272a]", "text-[#a1a1aa]"))
-    return f'<span class="px-1.5 py-0.5 rounded text-[11px] font-medium {bg} {fg}">{esc(language)}</span>'
+    return f'<span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium {bg} {fg}">{esc(language)}</span>'
 
 
 def priority_label(p: int) -> str:
     color = PRIORITY_COLORS.get(p, "text-[#a1a1aa]")
-    return f'<span class="font-bold text-xs {color}">P{p}</span>'
+    return f'<span class="font-semibold text-xs tabular-nums {color}">P{p}</span>'
 
 
 # ── Component Renderers ──────────────────────────────────────────────
@@ -172,36 +172,35 @@ def render_task_card(row) -> str:
     if can_act:
         action_btns = f"""
   <div class="flex gap-2 mt-3 pt-3 border-t border-[#27272a]">
-    <button class="bg-[#052e16] text-[#4ade80] border border-[#166534] rounded-lg px-2.5 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap hover:bg-[#14532d] min-h-[36px] transition-colors"
+    <button class="bg-[#052e16] text-[#4ade80] border border-[#166534] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer whitespace-nowrap hover:bg-[#14532d] h-8 transition-colors"
             onclick="openActionModal({m['id']},'done')">Mark Done</button>
-    <button class="bg-[#450a0a] text-[#f87171] border border-[#7f1d1d] rounded-lg px-2.5 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap hover:bg-[#7f1d1d] min-h-[36px] transition-colors"
+    <button class="bg-[#450a0a] text-[#f87171] border border-[#7f1d1d] rounded-md px-2.5 py-1 text-xs font-medium cursor-pointer whitespace-nowrap hover:bg-[#7f1d1d] h-8 transition-colors"
             onclick="openActionModal({m['id']},'cancelled')">Reject</button>
   </div>"""
 
     project_html = ""
     if m["project"]:
         pq = build_qs(project=m["project"])
-        project_html = f"""
-            <a class="bg-[#172554] text-[#3b82f6] px-1.5 py-0.5 rounded text-[11px] no-underline hover:underline cursor-pointer"
+        project_html = f"""<a class="text-[#3b82f6] text-xs no-underline hover:underline cursor-pointer"
                hx-get="/ui/tasks?{pq}" hx-target="#tab-content" hx-push-url="true">{esc(m['project'])}</a>"""
 
     desc_html = ""
     if m.get("description"):
-        desc_html = f'<div class="text-sm whitespace-pre-wrap break-words mt-2 text-[#a1a1aa] line-clamp-3">{esc(m["description"])}</div>'
+        desc_html = f'<div class="text-sm whitespace-pre-wrap break-words mt-1.5 text-[#a1a1aa] line-clamp-3">{esc(m["description"])}</div>'
 
-    return f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-xl p-4 shadow-sm
-                    hover:border-[#3f3f46] hover:shadow-md transition-all flex flex-col" id="task-{m['id']}">
-  <div class="flex items-center gap-2 mb-2 flex-wrap">
-    <span class="text-[#a1a1aa] text-xs font-mono cursor-pointer hover:text-[#3b82f6]"
-          title="Click to copy #{m['id']}" onclick="navigator.clipboard.writeText('#{m['id']}')">#{m['id']}</span>
+    return f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-4
+                    hover:border-[#3f3f46] transition-colors flex flex-col" id="task-{m['id']}">
+  <div class="flex items-center gap-1.5 mb-1.5 flex-wrap">
+    <span class="text-[#71717a] text-xs font-mono cursor-pointer hover:text-[#3b82f6] transition-colors"
+          onclick="navigator.clipboard.writeText('#{m['id']}')">#{m['id']}</span>
     {priority_label(m['priority'])}
     {status_badge(m['status'])}
   </div>
-  <div class="text-[15px] font-semibold mb-1 line-clamp-2">{esc(m['title'])}</div>
+  <div class="text-sm font-medium leading-snug line-clamp-2">{esc(m['title'])}</div>
   {desc_html}
-  <div class="mt-auto pt-3 flex items-center justify-between text-xs text-[#a1a1aa]">
+  <div class="mt-auto pt-2.5 flex items-center justify-between text-xs text-[#71717a]">
     <div class="flex items-center gap-2 min-w-0">
-      <span class="text-[#a78bfa] font-semibold shrink-0">{esc(m['username'])}</span>
+      <span class="text-[#a78bfa] font-medium shrink-0">{esc(m['username'])}</span>
       {project_html}
     </div>
     {time_tag(m['updated_at'])}
@@ -231,19 +230,18 @@ def render_journal_card(row) -> str:
     project_html = ""
     if m["project"]:
         pq = build_qs(project=m["project"])
-        project_html = f"""
-            <a class="bg-[#172554] text-[#3b82f6] px-1.5 py-0.5 rounded text-[11px] no-underline hover:underline cursor-pointer"
+        project_html = f"""<a class="text-[#3b82f6] text-xs no-underline hover:underline cursor-pointer"
                hx-get="/ui/journal?{pq}" hx-target="#tab-content" hx-push-url="true">{esc(m['project'])}</a>"""
 
-    return f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-xl p-4 shadow-sm
-                    flex flex-col hover:border-[#3f3f46] hover:shadow-md transition-all">
-  <div class="flex items-center gap-2 mb-2 text-xs text-[#a1a1aa] flex-wrap">
+    return f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-4
+                    flex flex-col hover:border-[#3f3f46] transition-colors">
+  <div class="flex items-center gap-2 mb-1.5 text-xs text-[#71717a] flex-wrap">
     <span class="font-mono">#{m['id']}</span>
-    <span class="text-[#a78bfa] font-semibold text-[13px]">{esc(m['username'])}</span>
+    <span class="text-[#a78bfa] font-medium">{esc(m['username'])}</span>
     {project_html}
     <span class="ml-auto shrink-0">{time_tag(m['created_at'])}</span>
   </div>
-  <div class="text-sm whitespace-pre-wrap break-words line-clamp-6 flex-1">{esc(m['content'])}</div>
+  <div class="text-sm whitespace-pre-wrap break-words line-clamp-6 flex-1 text-[#d4d4d8]">{esc(m['content'])}</div>
 </div>"""
 
 
@@ -320,7 +318,7 @@ def render_project_row(p, task_counts: dict, journal_count: int) -> str:
 
     return f"""<tr class="hover:bg-[#18181b]">
   <td class="px-2.5 py-2 border-b border-[#27272a] align-middle">
-    <a class="font-semibold text-[#3b82f6] text-[13px] no-underline hover:underline"
+    <a class="font-semibold text-[#3b82f6] text-sm no-underline hover:underline"
        href="https://github.com/agentine/{quote(name)}" target="_blank">{esc(name)}</a>
     {desc_html}
   </td>
@@ -336,7 +334,7 @@ def render_key_row(row) -> str:
     m = row._mapping
     return f"""<div class="flex items-center gap-3 px-4 py-2.5 border-b border-[#27272a] last:border-b-0">
   <span class="font-semibold text-sm min-w-[120px]">{esc(m['name'])}</span>
-  <span class="font-mono text-[13px] text-[#a1a1aa] bg-[#09090b] px-2 py-0.5 rounded">{esc(m['key'])}</span>
+  <span class="font-mono text-sm text-[#a1a1aa] bg-[#09090b] px-2 py-0.5 rounded">{esc(m['key'])}</span>
   <span class="ml-auto">{time_tag(m['created_at'])}</span>
   <button class="bg-[#450a0a] text-[#f87171] border border-[#7f1d1d] rounded-lg px-2.5 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap hover:bg-[#7f1d1d] min-h-[44px] transition-colors"
           data-key-id="{m['id']}" data-key-name="{esc(m['name'])}"
@@ -365,10 +363,10 @@ def render_pager(prefix: str, path: str, offset: int, total: int, **params) -> s
     next_label = "Older &rarr;" if prefix == "j" else "Next &rarr;"
 
     return f"""<div class="flex gap-2 justify-center items-center mt-4">
-  <button class="bg-[#09090b] border border-[#27272a] text-[#fafafa] px-4 py-2 rounded-md text-[13px] cursor-pointer min-h-[36px] hover:bg-[#0c0c0e] transition-colors {prev_disabled}"
+  <button class="bg-[#09090b] border border-[#27272a] text-[#fafafa] px-4 py-2 rounded-md text-sm cursor-pointer min-h-[36px] hover:bg-[#0c0c0e] transition-colors {prev_disabled}"
           hx-get="{path}?{prev_qs}" hx-target="#tab-content" hx-push-url="true">{prev_label}</button>
-  <span class="text-[13px] text-[#a1a1aa]">{page} / {pages}</span>
-  <button class="bg-[#09090b] border border-[#27272a] text-[#fafafa] px-4 py-2 rounded-md text-[13px] cursor-pointer min-h-[36px] hover:bg-[#0c0c0e] transition-colors {next_disabled}"
+  <span class="text-sm text-[#a1a1aa]">{page} / {pages}</span>
+  <button class="bg-[#09090b] border border-[#27272a] text-[#fafafa] px-4 py-2 rounded-md text-sm cursor-pointer min-h-[36px] hover:bg-[#0c0c0e] transition-colors {next_disabled}"
           hx-get="{path}?{next_qs}" hx-target="#tab-content" hx-push-url="true">{next_label}</button>
 </div>"""
 
@@ -376,13 +374,13 @@ def render_pager(prefix: str, path: str, offset: int, total: int, **params) -> s
 # ── Filter Bar Renderers ─────────────────────────────────────────────
 
 INPUT_CLS = (
-    "bg-[#09090b] border border-[#27272a] text-[#fafafa] px-3 py-2 rounded-md text-[13px]"
+    "bg-[#09090b] border border-[#27272a] text-[#fafafa] px-3 py-2 rounded-md text-sm"
     " placeholder:text-[#52525b] min-h-[36px]"
     " focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6]"
     " transition-colors"
 )
 SELECT_CLS = (
-    "bg-[#09090b] border border-[#27272a] text-[#fafafa] pl-3 pr-8 py-2 rounded-md text-[13px]"
+    "bg-[#09090b] border border-[#27272a] text-[#fafafa] pl-3 pr-8 py-2 rounded-md text-sm"
     " min-h-[36px] cursor-pointer appearance-none"
     " focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6]"
     " transition-colors"
@@ -475,12 +473,12 @@ def render_dashboard_tab(db: Session) -> str:
     if human_tasks:
         count = len(human_tasks)
         hq = build_qs(username="human", status="pending")
-        human_banner = f"""<div class="lg:col-span-2 bg-[#422006] border border-[#a16207] rounded-xl px-5 py-4 flex items-center gap-4 shadow-md cursor-pointer hover:bg-[#4a2c0a] transition-colors"
+        human_banner = f"""<div class="lg:col-span-2 bg-[#422006]/50 border border-[#a16207] rounded-lg px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-[#422006]/70 transition-colors"
      hx-get="/ui/tasks?{hq}" hx-target="#tab-content" hx-push-url="true">
   <span class="text-[#fbbf24]">{ICONS["alert"]}</span>
-  <div>
-    <div class="font-semibold text-[#fbbf24]">{count} task{"s" if count != 1 else ""} need{"" if count != 1 else "s"} human action</div>
-    <div class="text-xs text-[#a1a1aa] mt-0.5">Click to view and resolve pending human tasks</div>
+  <div class="flex-1">
+    <span class="text-sm font-medium text-[#fbbf24]">{count} task{"s" if count != 1 else ""} need{"" if count != 1 else "s"} human action</span>
+    <span class="text-xs text-[#a1a1aa] ml-2">Click to view</span>
   </div>
 </div>"""
 
@@ -490,11 +488,11 @@ def render_dashboard_tab(db: Session) -> str:
     else:
         task_items = '<div class="text-sm text-[#a1a1aa] py-4 text-center">No active tasks</div>'
 
-    tasks_widget = f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-xl p-5 shadow-md">
-  <div class="flex justify-between items-center mb-4">
-    <h2 class="text-sm font-semibold uppercase tracking-wider text-[#a1a1aa]">Active Tasks</h2>
+    tasks_widget = f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-4">
+  <div class="flex justify-between items-center mb-3">
+    <h2 class="text-sm font-medium text-[#fafafa]">Active Tasks</h2>
     <a hx-get="/ui/tasks" hx-target="#tab-content" hx-push-url="true"
-       class="text-xs text-[#3b82f6] cursor-pointer hover:underline">View all</a>
+       class="text-xs text-[#71717a] cursor-pointer hover:text-[#fafafa] transition-colors">View all &rarr;</a>
   </div>
   {task_items}
 </div>"""
@@ -505,22 +503,22 @@ def render_dashboard_tab(db: Session) -> str:
         for row in active_agents:
             m = row._mapping
             dot_cls = "bg-[#22c55e] shadow-[0_0_4px_#22c55e]" if m["status"] == "running" else "bg-[#71717a]"
-            proj = f'<div class="text-[11px] text-[#a1a1aa] truncate">{esc(m["project"])}</div>' if m["project"] else '<div class="text-[11px] text-[#a1a1aa]">no project</div>'
+            proj = f'<span class="text-[#52525b]">{esc(m["project"])}</span>' if m["project"] else ""
             agent_items.append(
-                f'<div class="flex items-center gap-3 py-2.5 border-b border-[#27272a] last:border-b-0">'
-                f'<span class="w-2.5 h-2.5 rounded-full {dot_cls} shrink-0"></span>'
+                f'<div class="flex items-center gap-3 py-2 border-b border-[#27272a] last:border-b-0">'
+                f'<span class="w-2 h-2 rounded-full {dot_cls} shrink-0"></span>'
                 f'<div class="flex-1 min-w-0">'
-                f'<div class="text-sm font-medium">{esc(m["username"])}</div>'
-                f'{proj}</div>'
-                f'<div class="text-xs text-[#a1a1aa] shrink-0">{time_ago(m["updated_at"])}</div>'
+                f'<span class="text-sm font-medium">{esc(m["username"])}</span>'
+                f' {proj}</div>'
+                f'<div class="text-xs text-[#52525b] shrink-0">{time_ago(m["updated_at"])}</div>'
                 f'</div>'
             )
         agents_html = "".join(agent_items)
     else:
         agents_html = '<div class="text-sm text-[#a1a1aa] py-4 text-center">No agents registered</div>'
 
-    agents_widget = f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-xl p-5 shadow-md">
-  <h2 class="text-sm font-semibold uppercase tracking-wider text-[#a1a1aa] mb-4">Agents</h2>
+    agents_widget = f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-4">
+  <h2 class="text-sm font-medium text-[#fafafa] mb-3">Agents</h2>
   {agents_html}
 </div>"""
 
@@ -530,16 +528,16 @@ def render_dashboard_tab(db: Session) -> str:
     else:
         journal_items = '<div class="text-sm text-[#a1a1aa] py-4 text-center">No journal entries</div>'
 
-    journal_widget = f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-xl p-5 shadow-md lg:col-span-2">
-  <div class="flex justify-between items-center mb-4">
-    <h2 class="text-sm font-semibold uppercase tracking-wider text-[#a1a1aa]">Recent Journal</h2>
+    journal_widget = f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-4 lg:col-span-2">
+  <div class="flex justify-between items-center mb-3">
+    <h2 class="text-sm font-medium text-[#fafafa]">Recent Journal</h2>
     <a hx-get="/ui/journal" hx-target="#tab-content" hx-push-url="true"
-       class="text-xs text-[#3b82f6] cursor-pointer hover:underline">View all</a>
+       class="text-xs text-[#71717a] cursor-pointer hover:text-[#fafafa] transition-colors">View all &rarr;</a>
   </div>
   {journal_items}
 </div>"""
 
-    return f"""<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    return f"""<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
   {human_banner}
   {tasks_widget}
   {agents_widget}
@@ -621,14 +619,14 @@ def render_projects_tab(db: Session, search: str, status: str, language: str, of
             for r in rows
         )
         list_html = f"""<div class="overflow-x-auto">
-  <table class="w-full min-w-[600px] border-collapse text-[13px]">
+  <table class="w-full min-w-[600px] border-collapse text-sm">
     <thead><tr>
-      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#a1a1aa] text-[11px] uppercase tracking-wider font-semibold whitespace-nowrap">Project</th>
-      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#a1a1aa] text-[11px] uppercase tracking-wider font-semibold whitespace-nowrap">Lang</th>
-      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#a1a1aa] text-[11px] uppercase tracking-wider font-semibold whitespace-nowrap">Status</th>
-      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#a1a1aa] text-[11px] uppercase tracking-wider font-semibold whitespace-nowrap">Tasks</th>
-      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#a1a1aa] text-[11px] uppercase tracking-wider font-semibold whitespace-nowrap">Journal</th>
-      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#a1a1aa] text-[11px] uppercase tracking-wider font-semibold whitespace-nowrap">Updated</th>
+      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Project</th>
+      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Lang</th>
+      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Status</th>
+      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Tasks</th>
+      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Journal</th>
+      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Updated</th>
     </tr></thead>
     <tbody>{table_rows}</tbody>
   </table>
@@ -640,7 +638,7 @@ def render_projects_tab(db: Session, search: str, status: str, language: str, of
     pager_html = render_pager("p", path, offset, total, **params)
 
     return f"""{filters_html}
-<div class="text-[13px] text-[#a1a1aa] mb-3">{total} {"item" if total == 1 else "items"}</div>
+<div class="text-sm text-[#a1a1aa] mb-3">{total} {"item" if total == 1 else "items"}</div>
 {list_html}
 {pager_html}"""
 
@@ -745,7 +743,7 @@ def render_tasks_tab(
   {_select("status", status, status_options, path)}
   {_select("priority", priority, priority_options, path)}
   {_select("sort", sort, sort_options, path)}
-  <button type="button" class="bg-[#e6edf3] text-[#0d1117] border-none rounded-md px-3.5 py-2 text-[13px] font-semibold cursor-pointer hover:bg-[#cdd5de] min-h-[36px] transition-colors"
+  <button type="button" class="bg-[#e6edf3] text-[#0d1117] border-none rounded-md px-3.5 py-2 text-sm font-semibold cursor-pointer hover:bg-[#cdd5de] min-h-[36px] transition-colors"
           onclick="openNewTaskModal()">+ New Task</button>
   {_clear_filters_btn(path, has_filters)}
 </form>
@@ -756,7 +754,7 @@ def render_tasks_tab(
     pager_html = render_pager("t", path, offset, total, **params)
 
     return f"""{filters_html}
-<div class="text-[13px] text-[#a1a1aa] mb-3">{total} {"item" if total == 1 else "items"}</div>
+<div class="text-sm text-[#a1a1aa] mb-3">{total} {"item" if total == 1 else "items"}</div>
 {items_html}
 {pager_html}"""
 
@@ -828,7 +826,7 @@ def render_journal_tab(
     pager_html = render_pager("j", path, offset, total, **params)
 
     return f"""{filters_html}
-<div class="text-[13px] text-[#a1a1aa] mb-3">{total} {"item" if total == 1 else "items"}</div>
+<div class="text-sm text-[#a1a1aa] mb-3">{total} {"item" if total == 1 else "items"}</div>
 {items_html}
 {pager_html}"""
 
@@ -837,7 +835,7 @@ def render_keys_tab(db: Session, api_key: str) -> str:
     authed = check_api_key(db, api_key)
 
     btn = """<div class="flex gap-2 mb-4 flex-wrap items-center">
-  <button type="button" class="bg-[#e6edf3] text-[#0d1117] border-none rounded-md px-3.5 py-2 text-[13px] font-semibold cursor-pointer hover:bg-[#cdd5de] min-h-[36px] transition-colors"
+  <button type="button" class="bg-[#e6edf3] text-[#0d1117] border-none rounded-md px-3.5 py-2 text-sm font-semibold cursor-pointer hover:bg-[#cdd5de] min-h-[36px] transition-colors"
           onclick="openNewKeyModal()">+ New Key</button>
 </div>"""
 
@@ -859,7 +857,7 @@ def render_keys_tab(db: Session, api_key: str) -> str:
 
     total = len(rows)
     if rows:
-        items_html = '<div class="bg-[#0c0c0e] border border-[#27272a] rounded-xl overflow-hidden shadow-sm">'
+        items_html = '<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg overflow-hidden shadow-sm">'
         items_html += "".join(render_key_row(MaskedRow(r)) for r in rows)
         items_html += "</div>"
     else:
@@ -867,7 +865,7 @@ def render_keys_tab(db: Session, api_key: str) -> str:
 
     return f"""{btn}
 <div id="key-banner"></div>
-<div class="text-[13px] text-[#a1a1aa] mb-3">{total} {"key" if total == 1 else "keys"}</div>
+<div class="text-sm text-[#a1a1aa] mb-3">{total} {"key" if total == 1 else "keys"}</div>
 {items_html}"""
 
 
@@ -895,34 +893,36 @@ def render_stats_html(db: Session) -> str:
     done_pct = int(done / total_tasks * 100) if total_tasks > 0 else 0
     agent_pct = int(running_agents / agent_count * 100) if agent_count > 0 else 0
 
-    return f"""<div class="flex gap-4 flex-wrap">
-  <div class="bg-[#0c0c0e] border border-[#27272a] rounded-xl px-5 py-4 flex flex-col min-w-[140px] shadow-md flex-1 cursor-pointer hover:border-[#3f3f46] hover:shadow-lg transition-all"
+    return f"""<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+  <div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg px-4 py-3 cursor-pointer hover:border-[#3f3f46] transition-colors"
        hx-get="/ui/tasks" hx-target="#tab-content" hx-push-url="true">
-    <span class="text-[28px] font-bold leading-tight">{total_tasks}</span>
-    <span class="text-xs text-[#a1a1aa] uppercase tracking-wider font-medium mt-0.5">Total Tasks</span>
-    <div class="mt-3 w-full bg-[#09090b] rounded-full h-1.5 overflow-hidden">
+    <div class="text-xs text-[#71717a] font-medium mb-1">Tasks</div>
+    <div class="text-2xl font-semibold tabular-nums">{total_tasks}</div>
+    <div class="mt-2 w-full bg-[#18181b] rounded-full h-1 overflow-hidden">
       <div class="h-full bg-[#3b82f6] rounded-full transition-all" style="width:{done_pct}%"></div>
     </div>
-    <div class="flex gap-3 mt-2 text-[11px] text-[#a1a1aa] flex-wrap">
-      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#71717a] inline-block"></span>{pending}p</span>
-      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#22c55e] inline-block"></span>{in_progress}a</span>
-      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#eab308] inline-block"></span>{blocked}b</span>
-      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#3b82f6] inline-block"></span>{done}d</span>
-      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#ef4444] inline-block"></span>{cancelled}x</span>
+    <div class="flex gap-2 mt-1.5 text-[11px] text-[#52525b] tabular-nums">
+      <span>{pending}p</span><span>{in_progress}a</span><span>{blocked}b</span><span>{done}d</span>
     </div>
   </div>
-  <div class="bg-[#0c0c0e] border border-[#27272a] rounded-xl px-5 py-4 flex flex-col min-w-[140px] shadow-md cursor-pointer hover:border-[#3f3f46] hover:shadow-lg transition-all"
+  <div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg px-4 py-3 cursor-pointer hover:border-[#3f3f46] transition-colors"
+       hx-get="/ui/tasks?status=done" hx-target="#tab-content" hx-push-url="true">
+    <div class="text-xs text-[#71717a] font-medium mb-1">Completed</div>
+    <div class="text-2xl font-semibold tabular-nums">{done}</div>
+    <div class="text-[11px] text-[#52525b] mt-1.5 tabular-nums">{cancelled} cancelled</div>
+  </div>
+  <div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg px-4 py-3 cursor-pointer hover:border-[#3f3f46] transition-colors"
        hx-get="/ui/dashboard" hx-target="#tab-content" hx-push-url="true">
-    <span class="text-[28px] font-bold leading-tight">{running_agents} <span class="text-base font-normal text-[#a1a1aa]">/ {agent_count}</span></span>
-    <span class="text-xs text-[#a1a1aa] uppercase tracking-wider font-medium mt-0.5">Agents Online</span>
-    <div class="mt-3 w-full bg-[#09090b] rounded-full h-1.5 overflow-hidden">
+    <div class="text-xs text-[#71717a] font-medium mb-1">Agents</div>
+    <div class="text-2xl font-semibold tabular-nums">{running_agents}<span class="text-sm font-normal text-[#52525b]"> / {agent_count}</span></div>
+    <div class="mt-2 w-full bg-[#18181b] rounded-full h-1 overflow-hidden">
       <div class="h-full bg-[#22c55e] rounded-full transition-all" style="width:{agent_pct}%"></div>
     </div>
   </div>
-  <div class="bg-[#0c0c0e] border border-[#27272a] rounded-xl px-5 py-4 flex flex-col min-w-[140px] shadow-md cursor-pointer hover:border-[#3f3f46] hover:shadow-lg transition-all"
+  <div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg px-4 py-3 cursor-pointer hover:border-[#3f3f46] transition-colors"
        hx-get="/ui/journal" hx-target="#tab-content" hx-push-url="true">
-    <span class="text-[28px] font-bold leading-tight">{journal_count}</span>
-    <span class="text-xs text-[#a1a1aa] uppercase tracking-wider font-medium mt-0.5">Journal Entries</span>
+    <div class="text-xs text-[#71717a] font-medium mb-1">Journal</div>
+    <div class="text-2xl font-semibold tabular-nums">{journal_count}</div>
   </div>
 </div>"""
 
@@ -968,12 +968,12 @@ def render_sidebar_nav(active: str) -> str:
     items = []
     for tab_id, label, icon in tabs_def:
         if tab_id == active:
-            active_cls = "bg-[#18181b] text-[#fafafa] border-l-2 border-l-[#58a6ff]"
+            active_cls = "bg-[#18181b] text-[#fafafa] border-l-2 border-l-[#3b82f6]"
         else:
-            active_cls = "text-[#a1a1aa] hover:text-[#fafafa] hover:bg-[#0c0c0e] border-l-2 border-l-transparent"
+            active_cls = "text-[#71717a] hover:text-[#fafafa] hover:bg-[#18181b] border-l-2 border-l-transparent"
         items.append(
-            f'<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium {active_cls}'
-            f' transition-colors min-h-[44px] cursor-pointer no-underline"'
+            f'<a class="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium {active_cls}'
+            f' transition-colors cursor-pointer no-underline"'
             f' hx-get="/ui/{tab_id}" hx-target="#tab-content" hx-push-url="true">'
             f'{icon}<span>{label}</span></a>'
         )
@@ -1060,13 +1060,13 @@ function openActionModal(taskId, status) {
   var overlay = document.createElement('div');
   overlay.className = 'fixed inset-0 bg-black/60 flex items-center justify-center z-50 modal-enter';
   overlay.id = 'action-modal';
-  overlay.innerHTML = '<div class="bg-[#0c0c0e] border border-[#27272a] rounded-xl p-5 w-[420px] max-w-[90vw]">' +
+  overlay.innerHTML = '<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-5 w-[420px] max-w-[90vw]">' +
     '<h2 class="text-base font-semibold mb-1">' + (isDone ? 'Mark Task Done' : 'Reject Task') + '</h2>' +
-    '<div class="text-[13px] text-[#a1a1aa] mb-3">' + (isDone ? 'Provide a brief summary of what was completed.' : 'Provide a reason for rejecting this task.') + '</div>' +
-    '<textarea id="action-summary" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-[13px] font-[inherit] resize-y min-h-[80px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors" placeholder="' + (isDone ? 'Summary of work done...' : 'Reason for rejection...') + '"></textarea>' +
+    '<div class="text-sm text-[#a1a1aa] mb-3">' + (isDone ? 'Provide a brief summary of what was completed.' : 'Provide a reason for rejecting this task.') + '</div>' +
+    '<textarea id="action-summary" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-sm font-[inherit] resize-y min-h-[80px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors" placeholder="' + (isDone ? 'Summary of work done...' : 'Reason for rejection...') + '"></textarea>' +
     '<div class="flex gap-2 justify-end mt-3">' +
-    '<button class="bg-[#18181b] text-[#fafafa] px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer border border-[#3f3f46] min-h-[36px] hover:bg-[#27272a] transition-colors" onclick="closeActionModal()">Cancel</button>' +
-    '<button class="' + (isDone ? 'bg-[#22c55e] text-black' : 'bg-[#ef4444] text-white') + ' px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer border-none min-h-[36px]" id="action-submit" onclick="submitAction()">' + (isDone ? 'Complete' : 'Reject') + '</button>' +
+    '<button class="bg-[#18181b] text-[#fafafa] px-4 py-2 rounded-md text-sm font-medium cursor-pointer border border-[#3f3f46] min-h-[36px] hover:bg-[#27272a] transition-colors" onclick="closeActionModal()">Cancel</button>' +
+    '<button class="' + (isDone ? 'bg-[#22c55e] text-black' : 'bg-[#ef4444] text-white') + ' px-4 py-2 rounded-md text-sm font-medium cursor-pointer border-none min-h-[36px]" id="action-submit" onclick="submitAction()">' + (isDone ? 'Complete' : 'Reject') + '</button>' +
     '</div></div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) closeActionModal(); });
@@ -1102,24 +1102,24 @@ function openNewTaskModal() {
   var overlay = document.createElement('div');
   overlay.className = 'fixed inset-0 bg-black/60 flex items-center justify-center z-50 modal-enter';
   overlay.id = 'new-task-modal';
-  overlay.innerHTML = '<div class="bg-[#0c0c0e] border border-[#27272a] rounded-xl p-5 w-[420px] max-w-[90vw]">' +
+  overlay.innerHTML = '<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-5 w-[420px] max-w-[90vw]">' +
     '<h2 class="text-base font-semibold mb-1">New Task</h2>' +
-    '<div class="text-[13px] text-[#a1a1aa] mb-3">Assign a task to an agent or team member.</div>' +
+    '<div class="text-sm text-[#a1a1aa] mb-3">Assign a task to an agent or team member.</div>' +
     '<label class="block text-xs text-[#a1a1aa] mb-1">Assign to</label>' +
-    '<input id="nt-user" list="dl-users" placeholder="agent" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-[13px] mb-2 min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors" />' +
+    '<input id="nt-user" list="dl-users" placeholder="agent" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-sm mb-2 min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors" />' +
     '<label class="block text-xs text-[#a1a1aa] mb-1">Title</label>' +
-    '<input id="nt-title" placeholder="Task title" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-[13px] mb-2 min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors" />' +
+    '<input id="nt-title" placeholder="Task title" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-sm mb-2 min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors" />' +
     '<div class="flex gap-2.5">' +
     '<div class="flex-1"><label class="block text-xs text-[#a1a1aa] mb-1">Priority</label>' +
-    '<select id="nt-priority" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-[13px] min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors">' +
+    '<select id="nt-priority" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-sm min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors">' +
     '<option value="1">P1 (lowest)</option><option value="2">P2</option><option value="3" selected>P3</option><option value="4">P4</option><option value="5">P5 (highest)</option></select></div>' +
     '<div class="flex-1"><label class="block text-xs text-[#a1a1aa] mb-1">Project</label>' +
-    '<input id="nt-project" list="dl-projects" placeholder="optional" autocomplete="off" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-[13px] min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors" /></div></div>' +
+    '<input id="nt-project" list="dl-projects" placeholder="optional" autocomplete="off" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-sm min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors" /></div></div>' +
     '<label class="block text-xs text-[#a1a1aa] mb-1 mt-2.5">Description</label>' +
-    '<textarea id="nt-desc" placeholder="Describe what needs to be done..." class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-lg p-2 text-[13px] font-[inherit] resize-y min-h-[80px]"></textarea>' +
+    '<textarea id="nt-desc" placeholder="Describe what needs to be done..." class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-lg p-2 text-sm font-[inherit] resize-y min-h-[80px]"></textarea>' +
     '<div class="flex gap-2 justify-end mt-3">' +
-    '<button class="bg-[#18181b] text-[#fafafa] px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer border border-[#3f3f46] min-h-[36px] hover:bg-[#27272a] transition-colors" onclick="closeNewTaskModal()">Cancel</button>' +
-    '<button class="bg-[#22c55e] text-black px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer border-none min-h-[36px]" id="nt-submit" onclick="submitNewTask()">Create Task</button>' +
+    '<button class="bg-[#18181b] text-[#fafafa] px-4 py-2 rounded-md text-sm font-medium cursor-pointer border border-[#3f3f46] min-h-[36px] hover:bg-[#27272a] transition-colors" onclick="closeNewTaskModal()">Cancel</button>' +
+    '<button class="bg-[#22c55e] text-black px-4 py-2 rounded-md text-sm font-medium cursor-pointer border-none min-h-[36px]" id="nt-submit" onclick="submitNewTask()">Create Task</button>' +
     '</div></div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) closeNewTaskModal(); });
@@ -1162,14 +1162,14 @@ function openNewKeyModal() {
   var overlay = document.createElement('div');
   overlay.className = 'fixed inset-0 bg-black/60 flex items-center justify-center z-50 modal-enter';
   overlay.id = 'new-key-modal';
-  overlay.innerHTML = '<div class="bg-[#0c0c0e] border border-[#27272a] rounded-xl p-5 w-[420px] max-w-[90vw]">' +
+  overlay.innerHTML = '<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-5 w-[420px] max-w-[90vw]">' +
     '<h2 class="text-base font-semibold mb-1">Create API Key</h2>' +
-    '<div class="text-[13px] text-[#a1a1aa] mb-3">Give this key a name to identify what system or agent uses it.</div>' +
+    '<div class="text-sm text-[#a1a1aa] mb-3">Give this key a name to identify what system or agent uses it.</div>' +
     '<label class="block text-xs text-[#a1a1aa] mb-1">Name</label>' +
-    '<input id="nk-name" placeholder="e.g. ci-pipeline, agent-alpha, matt" autocomplete="off" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-[13px] min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors" />' +
+    '<input id="nk-name" placeholder="e.g. ci-pipeline, agent-alpha, matt" autocomplete="off" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-sm min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors" />' +
     '<div class="flex gap-2 justify-end mt-3">' +
-    '<button class="bg-[#18181b] text-[#fafafa] px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer border border-[#3f3f46] min-h-[36px] hover:bg-[#27272a] transition-colors" onclick="closeNewKeyModal()">Cancel</button>' +
-    '<button class="bg-[#22c55e] text-black px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer border-none min-h-[36px]" id="nk-submit" onclick="submitNewKey()">Create</button>' +
+    '<button class="bg-[#18181b] text-[#fafafa] px-4 py-2 rounded-md text-sm font-medium cursor-pointer border border-[#3f3f46] min-h-[36px] hover:bg-[#27272a] transition-colors" onclick="closeNewKeyModal()">Cancel</button>' +
+    '<button class="bg-[#22c55e] text-black px-4 py-2 rounded-md text-sm font-medium cursor-pointer border-none min-h-[36px]" id="nk-submit" onclick="submitNewKey()">Create</button>' +
     '</div></div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) closeNewKeyModal(); });
@@ -1196,9 +1196,9 @@ async function submitNewKey() {
     closeNewKeyModal();
     var banner = document.getElementById('key-banner');
     if (banner) {
-      banner.innerHTML = '<div class="bg-[#052e16] border border-[#166534] rounded-xl px-4 py-3 mb-3">' +
-        '<div class="text-[13px] font-semibold mb-1">Key created for \\u201c' + name.replace(/[<>&"]/g, '') + '\\u201d</div>' +
-        '<div class="font-mono text-[13px] text-[#4ade80] break-all select-all">' + key.key + '</div>' +
+      banner.innerHTML = '<div class="bg-[#052e16] border border-[#166534] rounded-lg px-4 py-3 mb-3">' +
+        '<div class="text-sm font-semibold mb-1">Key created for \\u201c' + name.replace(/[<>&"]/g, '') + '\\u201d</div>' +
+        '<div class="font-mono text-sm text-[#4ade80] break-all select-all">' + key.key + '</div>' +
         '<div class="text-xs text-[#fbbf24] mt-1">Copy this key now \\u2014 it will not be shown again in full.</div></div>';
     }
     htmx.ajax('GET', '/ui/keys', {target: '#tab-content', swap: 'innerHTML'});
@@ -1288,20 +1288,20 @@ def render_shell(active_tab: str, content: str, stats_html: str, presence_html: 
 <aside id="sidebar" class="fixed top-0 left-0 h-screen w-60 bg-[#09090b] border-r border-[#27272a]
                            flex flex-col z-40 transition-transform duration-200
                            -translate-x-full lg:translate-x-0">
-  <div class="px-4 py-5 border-b border-[#27272a]">
+  <div class="px-4 py-4 border-b border-[#27272a]">
     <div class="flex items-center justify-between">
-      <h1 class="text-base font-semibold">Agent Comms</h1>
+      <h1 class="text-sm font-semibold tracking-tight">Agent Comms</h1>
       <a href="https://github.com/agentine" target="_blank"
-         class="text-[#a1a1aa] hover:text-[#fafafa] transition-colors">{ICONS["github"]}</a>
+         class="text-[#52525b] hover:text-[#fafafa] transition-colors">{ICONS["github"]}</a>
     </div>
   </div>
 
-  <nav id="sidebar-nav" class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+  <nav id="sidebar-nav" class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
     {render_sidebar_nav(active_tab)}
   </nav>
 
   <div class="px-3 py-3 border-t border-[#27272a]">
-    <div class="text-[11px] text-[#a1a1aa] uppercase tracking-wider font-semibold mb-2">Agents</div>
+    <div class="text-xs text-[#52525b] font-medium mb-2">Agents</div>
     <div id="presence-bar" class="space-y-0 max-h-[180px] overflow-y-auto"
          hx-get="/ui/partials/presence" hx-trigger="every 5s" hx-swap="innerHTML">
       {presence_html}
@@ -1311,11 +1311,11 @@ def render_shell(active_tab: str, content: str, stats_html: str, presence_html: 
   <div class="px-3 py-3 border-t border-[#27272a]">
     <div class="flex gap-1.5 items-center">
       <input id="api-key" type="password" placeholder="API key" autocomplete="off"
-             class="bg-[#0c0c0e] border border-[#27272a] text-[#fafafa] px-2 py-1.5 rounded-lg text-xs w-full placeholder:text-[#a1a1aa]" />
+             class="bg-[#09090b] border border-[#27272a] text-[#fafafa] px-2 py-1.5 rounded-md text-xs w-full placeholder:text-[#52525b] focus:outline-none focus:ring-1 focus:ring-[#3b82f6]/40" />
       <button onclick="saveApiKey()"
-              class="bg-[#0c0c0e] border border-[#27272a] text-[#fafafa] px-2 py-1.5 rounded-lg text-xs cursor-pointer shrink-0 hover:bg-[#18181b] transition-colors">Save</button>
+              class="bg-[#18181b] border border-[#27272a] text-[#a1a1aa] px-2.5 py-1.5 rounded-md text-xs cursor-pointer shrink-0 hover:text-[#fafafa] hover:bg-[#27272a] transition-colors">Save</button>
     </div>
-    <span id="api-key-status" class="text-[11px] text-[#a1a1aa]"></span>
+    <span id="api-key-status" class="text-xs text-[#52525b]"></span>
   </div>
 </aside>
 
@@ -1364,19 +1364,19 @@ LANDING_PAGE = f"""\
   </p>
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
     <a href="/ui"
-       class="bg-[#0c0c0e] border border-[#27272a] rounded-xl p-6 no-underline text-[#fafafa] hover:border-[#3f3f46] transition-colors shadow-lg min-h-[44px]">
+       class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-6 no-underline text-[#fafafa] hover:border-[#3f3f46] transition-colors shadow-lg min-h-[44px]">
       <div class="text-2xl mb-2 flex justify-center text-[#3b82f6]">{ICONS["chart"]}</div>
       <div class="font-semibold mb-1">Dashboard</div>
       <div class="text-sm text-[#a1a1aa]">View projects, tasks, and agent activity</div>
     </a>
     <a href="/api/docs"
-       class="bg-[#0c0c0e] border border-[#27272a] rounded-xl p-6 no-underline text-[#fafafa] hover:border-[#3f3f46] transition-colors shadow-lg min-h-[44px]">
+       class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-6 no-underline text-[#fafafa] hover:border-[#3f3f46] transition-colors shadow-lg min-h-[44px]">
       <div class="text-2xl mb-2 flex justify-center text-[#3b82f6]">{ICONS["book"]}</div>
       <div class="font-semibold mb-1">API Docs</div>
       <div class="text-sm text-[#a1a1aa]">Interactive API documentation</div>
     </a>
     <a href="https://github.com/agentine" target="_blank"
-       class="bg-[#0c0c0e] border border-[#27272a] rounded-xl p-6 no-underline text-[#fafafa] hover:border-[#3f3f46] transition-colors shadow-lg min-h-[44px]">
+       class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-6 no-underline text-[#fafafa] hover:border-[#3f3f46] transition-colors shadow-lg min-h-[44px]">
       <div class="text-2xl mb-2 flex justify-center text-[#a1a1aa]">
         <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
       </div>
