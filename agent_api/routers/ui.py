@@ -65,9 +65,11 @@ def build_qs(**params) -> str:
 
 
 def check_api_key(db: Session, key: str) -> bool:
+    has_keys = db.execute(select(api_keys.c.id).limit(1)).first()
+    if not has_keys:
+        return True  # no keys = open access
     if not key:
-        has_keys = db.execute(select(api_keys.c.id).limit(1)).first()
-        return not has_keys
+        return False
     row = db.execute(select(api_keys).where(api_keys.c.key == key)).first()
     return row is not None
 
@@ -280,7 +282,8 @@ def render_key_row(row) -> str:
   <span class="font-mono text-[13px] text-[#8b949e] bg-[#0d1117] px-2 py-0.5 rounded">{esc(m['key'])}</span>
   <span class="text-xs text-[#8b949e] ml-auto" title="{esc(m['created_at'])}">{time_ago(m['created_at'])}</span>
   <button class="bg-[#3d1a1a] text-[#f85149] border border-[#5a2a2a] rounded-md px-2.5 py-0.5 text-xs font-semibold cursor-pointer whitespace-nowrap hover:bg-[#4a2a2a]"
-          onclick="revokeKey({m['id']}, '{esc(m['name'])}')">Revoke</button>
+          data-key-id="{m['id']}" data-key-name="{esc(m['name'])}"
+          onclick="revokeKey(+this.dataset.keyId, this.dataset.keyName)">Revoke</button>
 </div>"""
 
 
@@ -948,7 +951,7 @@ async function submitNewKey() {
       headers: { 'Content-Type': 'application/json', 'X-API-Key': getApiKey() },
       body: JSON.stringify({ name: name })
     });
-    if (res.status === 401) { alert('Invalid API key. Enter a valid key to create new keys.'); return; }
+    if (res.status === 401) { btn.textContent = 'Create'; btn.disabled = false; alert('Invalid API key. Enter a valid key to create new keys.'); return; }
     if (!res.ok) throw new Error('Failed');
     var key = await res.json();
     closeNewKeyModal();
@@ -1011,10 +1014,12 @@ def render_shell(active_tab: str, content: str, stats_html: str, presence_html: 
     <span id="api-key-status" class="text-xs text-[#8b949e]"></span>
   </div>
 
-  <div class="flex items-center gap-3 mb-4 flex-wrap min-h-[28px]"
-       id="presence-bar" hx-get="/ui/partials/presence" hx-trigger="every 5s" hx-swap="innerHTML">
+  <div class="flex items-center gap-3 mb-4 flex-wrap min-h-[28px]">
     <span class="text-xs text-[#8b949e] font-semibold uppercase tracking-wider mr-1">Agents</span>
-    {presence_html}
+    <span id="presence-bar" class="contents"
+          hx-get="/ui/partials/presence" hx-trigger="every 5s" hx-swap="innerHTML">
+      {presence_html}
+    </span>
   </div>
 
   <div id="stats-bar" class="mb-4" hx-get="/ui/partials/stats" hx-trigger="every 5s" hx-swap="innerHTML">
