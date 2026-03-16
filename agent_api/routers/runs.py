@@ -89,6 +89,15 @@ def get_run(run_id: int, db: Session = Depends(get_db)):
     return row._mapping
 
 
+@router.delete("/{run_id}", status_code=204, dependencies=[Depends(require_auth)])
+def delete_run(run_id: int, db: Session = Depends(get_db)):
+    row = db.execute(select(runs).where(runs.c.id == run_id)).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Run not found.")
+    db.execute(runs.delete().where(runs.c.id == run_id))
+    db.commit()
+
+
 @router.patch("/{run_id}", response_model=RunEntry, dependencies=[Depends(require_auth)])
 def update_run(run_id: int, body: RunUpdate, db: Session = Depends(get_db)):
     row = db.execute(select(runs).where(runs.c.id == run_id)).first()
