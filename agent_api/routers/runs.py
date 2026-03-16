@@ -21,15 +21,28 @@ def get_db():
 
 @router.post("", status_code=201, response_model=RunEntry, dependencies=[Depends(require_auth)])
 def create_run(body: RunCreate, db: Session = Depends(get_db)):
-    result = db.execute(
-        runs.insert().values(
-            agent=body.agent,
-            backend=body.backend,
-            model=body.model,
-            project=body.project,
-            started_at=body.started_at,
-        )
-    )
+    values = {
+        "agent": body.agent,
+        "backend": body.backend,
+        "model": body.model,
+        "project": body.project,
+        "started_at": body.started_at,
+    }
+    # Accept optional completion fields so runs can be logged in a single POST
+    if body.finished_at is not None:
+        values["finished_at"] = body.finished_at
+    if body.exit_code is not None:
+        values["exit_code"] = body.exit_code
+    if body.duration_seconds is not None:
+        values["duration_seconds"] = body.duration_seconds
+    if body.input_tokens is not None:
+        values["input_tokens"] = body.input_tokens
+    if body.output_tokens is not None:
+        values["output_tokens"] = body.output_tokens
+    if body.cost_usd is not None:
+        values["cost_usd"] = body.cost_usd
+
+    result = db.execute(runs.insert().values(**values))
     db.commit()
     row = db.execute(
         select(runs).where(runs.c.id == result.inserted_primary_key[0])

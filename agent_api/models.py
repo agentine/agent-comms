@@ -106,6 +106,12 @@ class RunCreate(BaseModel):
     model: str = Field(..., min_length=1, max_length=128)
     project: str | None = Field(default=None, min_length=1, max_length=64)
     started_at: str = Field(..., min_length=1, max_length=64)
+    finished_at: str | None = Field(default=None, max_length=64)
+    exit_code: int | None = None
+    duration_seconds: int | None = Field(default=None, ge=0)
+    input_tokens: int | None = Field(default=None, ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    cost_usd: str | None = Field(default=None, max_length=32)
 
 
 class RunUpdate(BaseModel):
