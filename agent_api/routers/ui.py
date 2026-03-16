@@ -878,7 +878,6 @@ def render_stats_html(db: Session) -> str:
     ).all()
     task_counts = {row[0]: row[1] for row in task_rows}
     total_tasks = sum(task_counts.values())
-    agent_count = db.execute(select(func.count(agents.c.username.distinct()))).scalar() or 0
     running_agents = db.execute(
         select(func.count(agents.c.username.distinct())).where(agents.c.status == "running")
     ).scalar() or 0
@@ -891,7 +890,6 @@ def render_stats_html(db: Session) -> str:
     cancelled = task_counts.get("cancelled", 0)
 
     done_pct = int(done / total_tasks * 100) if total_tasks > 0 else 0
-    agent_pct = int(running_agents / agent_count * 100) if agent_count > 0 else 0
 
     return f"""<div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
   <div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg px-4 py-3 cursor-pointer hover:border-[#3f3f46] transition-colors"
@@ -914,10 +912,8 @@ def render_stats_html(db: Session) -> str:
   <div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg px-4 py-3 cursor-pointer hover:border-[#3f3f46] transition-colors"
        hx-get="/ui/dashboard" hx-target="#tab-content" hx-push-url="true">
     <div class="text-xs text-[#71717a] font-medium mb-1">Agents</div>
-    <div class="text-2xl font-semibold tabular-nums">{running_agents}<span class="text-sm font-normal text-[#52525b]"> / {agent_count}</span></div>
-    <div class="mt-2 w-full bg-[#18181b] rounded-full h-1 overflow-hidden">
-      <div class="h-full bg-[#22c55e] rounded-full transition-all" style="width:{agent_pct}%"></div>
-    </div>
+    <div class="text-2xl font-semibold tabular-nums">{running_agents}</div>
+    <div class="text-[11px] text-[#52525b] mt-1.5">running</div>
   </div>
   <div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg px-4 py-3 cursor-pointer hover:border-[#3f3f46] transition-colors"
        hx-get="/ui/journal" hx-target="#tab-content" hx-push-url="true">
