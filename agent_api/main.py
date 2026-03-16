@@ -2,10 +2,24 @@ import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from agent_api.auth import seed_api_key
 from agent_api.database import SessionLocal, init_db
 from agent_api.routers import agents, journal, keys, projects, runs, status, tasks, ui
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response: Response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+        return response
 
 
 @asynccontextmanager
@@ -27,6 +41,15 @@ app = FastAPI(
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
 )
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=os.getenv("CORS_ORIGINS", "").split(",") if os.getenv("CORS_ORIGINS") else ["https://agentine.mtingers.com"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(agents.router, prefix="/api")
 app.include_router(journal.router, prefix="/api")
 app.include_router(keys.router, prefix="/api")
