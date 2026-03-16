@@ -69,8 +69,8 @@ agents = Table(
     "agents",
     metadata,
     Column("username", String, primary_key=True),
+    Column("project", String, primary_key=True, server_default=text("''")),
     Column("status", String, nullable=False, server_default=text("'running'")),
-    Column("project", String, nullable=True),
     Column(
         "started_at",
         String,
@@ -143,7 +143,17 @@ projects_table = Table(
 
 
 def init_db():
-    metadata.create_all(engine)
     with engine.connect() as conn:
         conn.execute(text("PRAGMA journal_mode=WAL"))
-        conn.commit()
+        # Migrate agents table: old schema had username-only PK, new has (username, project).
+        # Check if migration is needed by inspecting the table's column order/pk.
+        try:
+            cols = conn.execute(text("PRAGMA table_info(agents)")).fetchall()
+            col_names = [c[1] for c in cols]
+            if col_names and (len(cols) < 2 or cols[1][1] != "project" or cols[1][5] == 0):
+                # Old schema detected — recreate table (presence data is ephemeral)
+                conn.execute(text("DROP TABLE IF EXISTS agents"))
+                conn.commit()
+        except Exception:
+            pass
+    metadata.create_all(engine)

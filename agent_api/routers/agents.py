@@ -22,22 +22,27 @@ def get_db():
 @router.post("", status_code=200, response_model=AgentEntry, dependencies=[Depends(require_auth)])
 def register_agent(body: AgentRegister, db: Session = Depends(get_db)):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    project = body.project or ""
     existing = db.execute(
-        select(agents).where(agents.c.username == body.username)
+        select(agents).where(
+            (agents.c.username == body.username) & (agents.c.project == project)
+        )
     ).first()
 
     if existing:
         db.execute(
             agents.update()
-            .where(agents.c.username == body.username)
-            .values(status=body.status, project=body.project, updated_at=now)
+            .where(
+                (agents.c.username == body.username) & (agents.c.project == project)
+            )
+            .values(status=body.status, updated_at=now)
         )
     else:
         db.execute(
             agents.insert().values(
                 username=body.username,
                 status=body.status,
-                project=body.project,
+                project=project,
                 started_at=now,
                 updated_at=now,
             )
@@ -45,7 +50,9 @@ def register_agent(body: AgentRegister, db: Session = Depends(get_db)):
     db.commit()
 
     row = db.execute(
-        select(agents).where(agents.c.username == body.username)
+        select(agents).where(
+            (agents.c.username == body.username) & (agents.c.project == project)
+        )
     ).first()
     return row._mapping
 
@@ -76,21 +83,31 @@ def list_agents(
 
 
 @router.get("/{username}", response_model=AgentEntry)
-def get_agent(username: str, db: Session = Depends(get_db)):
-    row = db.execute(
-        select(agents).where(agents.c.username == username)
-    ).first()
+def get_agent(
+    username: str,
+    project: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    query = select(agents).where(agents.c.username == username)
+    if project is not None:
+        query = query.where(agents.c.project == project)
+    row = db.execute(query.order_by(agents.c.updated_at.desc())).first()
     if row is None:
         raise HTTPException(status_code=404, detail="Agent not found.")
     return row._mapping
 
 
 @router.delete("/{username}", status_code=204, dependencies=[Depends(require_auth)])
-def deregister_agent(username: str, db: Session = Depends(get_db)):
-    row = db.execute(
-        select(agents).where(agents.c.username == username)
-    ).first()
+def deregister_agent(
+    username: str,
+    project: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    cond = agents.c.username == username
+    if project is not None:
+        cond = cond & (agents.c.project == project)
+    row = db.execute(select(agents).where(cond)).first()
     if row is None:
         raise HTTPException(status_code=404, detail="Agent not found.")
-    db.execute(agents.delete().where(agents.c.username == username))
+    db.execute(agents.delete().where(cond))
     db.commit()

@@ -504,7 +504,7 @@ def render_dashboard_tab(db: Session) -> str:
         agent_items = []
         for row in active_agents:
             m = row._mapping
-            dot_cls = "bg-[#22c55e] shadow-[0_0_4px_#22c55e]" if m["status"] == "running" else "bg-[#8b949e]"
+            dot_cls = "bg-[#22c55e] shadow-[0_0_4px_#22c55e]" if m["status"] == "running" else "bg-[#71717a]"
             proj = f'<div class="text-[11px] text-[#a1a1aa] truncate">{esc(m["project"])}</div>' if m["project"] else '<div class="text-[11px] text-[#a1a1aa]">no project</div>'
             agent_items.append(
                 f'<div class="flex items-center gap-3 py-2.5 border-b border-[#27272a] last:border-b-0">'
@@ -880,9 +880,9 @@ def render_stats_html(db: Session) -> str:
     ).all()
     task_counts = {row[0]: row[1] for row in task_rows}
     total_tasks = sum(task_counts.values())
-    agent_count = db.execute(select(func.count()).select_from(agents)).scalar() or 0
+    agent_count = db.execute(select(func.count(agents.c.username.distinct()))).scalar() or 0
     running_agents = db.execute(
-        select(func.count()).select_from(agents).where(agents.c.status == "running")
+        select(func.count(agents.c.username.distinct())).where(agents.c.status == "running")
     ).scalar() or 0
     journal_count = db.execute(select(func.count()).select_from(journal)).scalar() or 0
 
@@ -904,7 +904,7 @@ def render_stats_html(db: Session) -> str:
       <div class="h-full bg-[#3b82f6] rounded-full transition-all" style="width:{done_pct}%"></div>
     </div>
     <div class="flex gap-3 mt-2 text-[11px] text-[#a1a1aa] flex-wrap">
-      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#8b949e] inline-block"></span>{pending}p</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#71717a] inline-block"></span>{pending}p</span>
       <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#22c55e] inline-block"></span>{in_progress}a</span>
       <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#eab308] inline-block"></span>{blocked}b</span>
       <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#3b82f6] inline-block"></span>{done}d</span>
@@ -938,7 +938,7 @@ def render_presence_html(db: Session) -> str:
     items = []
     for row in rows:
         m = row._mapping
-        dot_cls = "bg-[#22c55e] shadow-[0_0_4px_#22c55e]" if m["status"] == "running" else "bg-[#8b949e]"
+        dot_cls = "bg-[#22c55e] shadow-[0_0_4px_#22c55e]" if m["status"] == "running" else "bg-[#71717a]"
         project_html = ""
         if m["project"]:
             project_html = f'<div class="text-[11px] text-[#a1a1aa] truncate">{esc(m["project"])}</div>'
@@ -1518,9 +1518,9 @@ def ui_stats(db: Session = Depends(get_db)):
     ).all()
     task_counts = {row[0]: row[1] for row in task_rows}
     total_tasks = sum(task_counts.values())
-    agent_count = db.execute(select(func.count()).select_from(agents)).scalar()
+    agent_count = db.execute(select(func.count(agents.c.username.distinct()))).scalar()
     running_agents = db.execute(
-        select(func.count()).select_from(agents).where(agents.c.status == "running")
+        select(func.count(agents.c.username.distinct())).where(agents.c.status == "running")
     ).scalar()
     journal_count = db.execute(select(func.count()).select_from(journal)).scalar()
     human_actionable = db.execute(
