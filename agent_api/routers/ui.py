@@ -93,6 +93,7 @@ ICONS = {
     "tasks": '<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>',
     "journal": '<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>',
     "key": '<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>',
+    "play": '<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>',
     "search": '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>',
     "external": '<svg class="w-3 h-3 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
     "alert": '<svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
@@ -831,6 +832,140 @@ def render_journal_tab(
 {pager_html}"""
 
 
+def _format_duration(seconds) -> str:
+    if seconds is None:
+        return "-"
+    if seconds < 60:
+        return f"{seconds}s"
+    if seconds < 3600:
+        return f"{seconds // 60}m {seconds % 60}s"
+    return f"{seconds // 3600}h {(seconds % 3600) // 60}m"
+
+
+def _format_tokens(n) -> str:
+    if n is None:
+        return "-"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n / 1_000:.1f}k"
+    return str(n)
+
+
+def render_run_row(row) -> str:
+    m = row._mapping
+    is_running = m["finished_at"] is None
+
+    status_html = (
+        '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#052e16] text-[#4ade80]">running</span>'
+        if is_running
+        else '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#27272a] text-[#a1a1aa]">finished</span>'
+    )
+    if m["exit_code"] is not None and m["exit_code"] != 0:
+        status_html = f'<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-[#450a0a] text-[#f87171]">exit {m["exit_code"]}</span>'
+
+    project_html = ""
+    if m["project"]:
+        pq = build_qs(project=m["project"])
+        project_html = f'<a class="text-[#3b82f6] text-xs no-underline hover:underline cursor-pointer" hx-get="/ui/runs?{pq}" hx-target="#tab-content" hx-push-url="true">{esc(m["project"])}</a>'
+
+    cost_html = ""
+    if m["cost_usd"]:
+        cost_html = f'<span class="text-[#4ade80]">${esc(m["cost_usd"])}</span>'
+
+    return f"""<tr class="hover:bg-[#18181b] transition-colors">
+  <td class="px-3 py-2.5 border-b border-[#27272a] text-xs font-mono text-[#71717a]">#{m['id']}</td>
+  <td class="px-3 py-2.5 border-b border-[#27272a]">
+    <div class="text-sm font-medium">{esc(m['agent'])}</div>
+    {project_html}
+  </td>
+  <td class="px-3 py-2.5 border-b border-[#27272a]">{status_html}</td>
+  <td class="px-3 py-2.5 border-b border-[#27272a] text-xs text-[#a1a1aa]">{esc(m['backend'])}<span class="text-[#52525b]"> / </span>{esc(m['model'])}</td>
+  <td class="px-3 py-2.5 border-b border-[#27272a] text-xs tabular-nums text-[#a1a1aa]">{_format_duration(m['duration_seconds'])}</td>
+  <td class="px-3 py-2.5 border-b border-[#27272a] text-xs tabular-nums text-[#a1a1aa]">{_format_tokens(m['input_tokens'])}<span class="text-[#52525b]"> / </span>{_format_tokens(m['output_tokens'])}</td>
+  <td class="px-3 py-2.5 border-b border-[#27272a] text-xs tabular-nums">{cost_html}</td>
+  <td class="px-3 py-2.5 border-b border-[#27272a] text-xs tabular-nums text-[#a1a1aa]">{m['tasks_completed']}</td>
+  <td class="px-3 py-2.5 border-b border-[#27272a] whitespace-nowrap">{time_tag(m['started_at'])}</td>
+</tr>"""
+
+
+def render_runs_tab(
+    db: Session,
+    agent: str,
+    project: str,
+    sort: str,
+    offset: int,
+) -> str:
+    from agent_api.database import runs
+
+    query = select(runs)
+    count_query = select(func.count()).select_from(runs)
+
+    if agent:
+        query = query.where(runs.c.agent == agent)
+        count_query = count_query.where(runs.c.agent == agent)
+    if project:
+        query = query.where(runs.c.project == project)
+        count_query = count_query.where(runs.c.project == project)
+
+    order = runs.c.started_at.asc() if sort == "asc" else runs.c.started_at.desc()
+    total = db.execute(count_query).scalar() or 0
+    rows = db.execute(query.order_by(order).limit(PER_PAGE).offset(offset)).fetchall()
+
+    # Get filter options
+    agent_names = sorted(
+        db.execute(select(runs.c.agent.distinct()).where(runs.c.agent.isnot(None))).scalars().all()
+    )
+    project_names = sorted(
+        db.execute(select(runs.c.project.distinct()).where(runs.c.project.isnot(None))).scalars().all()
+    )
+
+    path = "/ui/runs"
+    sort_options = [("desc", "Newest first"), ("asc", "Oldest first")]
+
+    dl_agents = "".join(f'<option value="{esc(a)}">' for a in agent_names)
+    dl_projects = "".join(f'<option value="{esc(p)}">' for p in project_names)
+
+    has_filters = bool(agent or project)
+    filters_html = f"""<form class="flex gap-2 mb-4 flex-wrap items-center">
+  {_text_input("agent", agent, "agent", path, "dl-run-agents")}
+  {_text_input("project", project, "project", path, "dl-run-projects")}
+  {_select("sort", sort, sort_options, path)}
+  {_clear_filters_btn(path, has_filters)}
+</form>
+<datalist id="dl-run-agents">{dl_agents}</datalist>
+<datalist id="dl-run-projects">{dl_projects}</datalist>"""
+
+    if rows:
+        table_rows = "".join(render_run_row(r) for r in rows)
+        list_html = f"""<div class="overflow-x-auto">
+  <table class="w-full min-w-[700px] border-collapse text-sm">
+    <thead><tr>
+      <th class="text-left px-3 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">ID</th>
+      <th class="text-left px-3 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Agent</th>
+      <th class="text-left px-3 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Status</th>
+      <th class="text-left px-3 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Backend / Model</th>
+      <th class="text-left px-3 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Duration</th>
+      <th class="text-left px-3 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Tokens (in/out)</th>
+      <th class="text-left px-3 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Cost</th>
+      <th class="text-left px-3 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Tasks</th>
+      <th class="text-left px-3 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Started</th>
+    </tr></thead>
+    <tbody>{table_rows}</tbody>
+  </table>
+</div>"""
+    else:
+        list_html = f'<div class="flex flex-col items-center justify-center py-16 text-[#a1a1aa]">{ICONS["inbox"]}<div class="mt-3 text-sm font-medium">No runs recorded</div><div class="text-xs mt-1">Runs will appear as agents start executing</div></div>'
+
+    params = dict(agent=agent, project=project, sort=sort)
+    pager_html = render_pager("r", path, offset, total, **params)
+
+    return f"""{filters_html}
+<div class="text-sm text-[#a1a1aa] mb-3">{total} {"run" if total == 1 else "runs"}</div>
+{list_html}
+{pager_html}"""
+
+
 def render_keys_tab(db: Session, api_key: str) -> str:
     authed = check_api_key(db, api_key)
 
@@ -959,6 +1094,7 @@ def render_sidebar_nav(active: str) -> str:
         ("projects", "Projects", ICONS["folder"]),
         ("tasks", "Tasks", ICONS["tasks"]),
         ("journal", "Journal", ICONS["journal"]),
+        ("runs", "Runs", ICONS["play"]),
         ("keys", "Keys", ICONS["key"]),
     ]
     items = []
@@ -1466,6 +1602,23 @@ def ui_journal_page(
     stats_html = render_stats_html(db)
     presence_html = render_presence_html(db)
     return HTMLResponse(render_shell("journal", content, stats_html, presence_html))
+
+
+@router.get("/ui/runs", response_class=HTMLResponse)
+def ui_runs_page(
+    request: Request,
+    agent: str = Query(default=""),
+    project: str = Query(default=""),
+    sort: str = Query(default="desc"),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    content = render_runs_tab(db, agent, project, sort, offset)
+    if is_htmx(request):
+        return HTMLResponse(content + render_sidebar_nav_oob("runs"))
+    stats_html = render_stats_html(db)
+    presence_html = render_presence_html(db)
+    return HTMLResponse(render_shell("runs", content, stats_html, presence_html))
 
 
 @router.get("/ui/keys", response_class=HTMLResponse)
