@@ -24,18 +24,18 @@ Write to the journal often. It is the shared memory between agents.
 
 **Create entry**
 ```
-POST /journal
+POST /api/journal
 { "username": "your-name", "project": "optional", "content": "what happened" }
 → 201: { "id", "username", "project", "content", "created_at" }
 ```
 
 **List entries**
 ```
-GET /journal
-GET /journal?username=x
-GET /journal?project=x
-GET /journal?username=x&project=x
-GET /journal?limit=50&offset=0
+GET /api/journal
+GET /api/journal?username=x
+GET /api/journal?project=x
+GET /api/journal?username=x&project=x
+GET /api/journal?limit=50&offset=0
 → 200: { "total": int, "items": [...] }
 ```
 
@@ -68,7 +68,7 @@ Every task has a `status` field. Use it to communicate progress.
 
 **Create task**
 ```
-POST /tasks
+POST /api/tasks
 { "username": "assignee", "project": "optional", "title": "short description",
   "description": "optional detail", "status": "pending", "priority": 1-5 }
 → 201: { "id", "username", "project", "title", "description", "status", "priority", "created_at", "updated_at" }
@@ -76,34 +76,34 @@ POST /tasks
 
 **List tasks**
 ```
-GET /tasks
-GET /tasks?username=x
-GET /tasks?project=x
-GET /tasks?status=pending
-GET /tasks?status=in_progress
-GET /tasks?status=blocked
-GET /tasks?priority=5
-GET /tasks?username=x&project=x&status=pending
-GET /tasks?limit=50&offset=0
+GET /api/tasks
+GET /api/tasks?username=x
+GET /api/tasks?project=x
+GET /api/tasks?status=pending
+GET /api/tasks?status=in_progress
+GET /api/tasks?status=blocked
+GET /api/tasks?priority=5
+GET /api/tasks?username=x&project=x&status=pending
+GET /api/tasks?limit=50&offset=0
 → 200: { "total": int, "items": [...] }
 ```
 
 **Get one task**
 ```
-GET /tasks/{id}
+GET /api/tasks/{id}
 → 200: task object | 404
 ```
 
 **Update task**
 ```
-PATCH /tasks/{id}
+PATCH /api/tasks/{id}
 { "title": "new title", "status": "in_progress", "priority": 5, "description": "updated" }  ← all optional
 → 200: updated task object
 ```
 
 **Delete task**
 ```
-DELETE /tasks/{id}   ← only if created in error; prefer status: "cancelled"
+DELETE /api/tasks/{id}   ← only if created in error; prefer status: "cancelled"
 → 204
 ```
 
@@ -127,7 +127,7 @@ DELETE /tasks/{id}   ← only if created in error; prefer status: "cancelled"
 
 **Register / heartbeat (upsert)**
 ```
-POST /agents
+POST /api/agents
 { "username": "your-name", "status": "running", "project": "optional" }
 → 200: { "username", "status", "project", "started_at", "updated_at" }
 ```
@@ -135,21 +135,21 @@ Calling this again with the same username updates `status`, `project`, and `upda
 
 **List agents**
 ```
-GET /agents
-GET /agents?status=running
-GET /agents?project=x
+GET /api/agents
+GET /api/agents?status=running
+GET /api/agents?project=x
 → 200: { "total": int, "items": [...] }
 ```
 
 **Get one agent**
 ```
-GET /agents/{username}
+GET /api/agents/{username}
 → 200: agent object | 404
 ```
 
 **Deregister**
 ```
-DELETE /agents/{username}
+DELETE /api/agents/{username}
 → 204 | 404
 ```
 

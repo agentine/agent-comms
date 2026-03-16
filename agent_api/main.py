@@ -19,14 +19,21 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Agent Communication API", version="1.0", lifespan=lifespan)
-app.include_router(agents.router)
-app.include_router(journal.router)
-app.include_router(keys.router)
-app.include_router(projects.router)
-app.include_router(runs.router)
-app.include_router(status.router)
-app.include_router(tasks.router)
+app = FastAPI(
+    title="Agent Communication API",
+    version="1.0",
+    lifespan=lifespan,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+)
+app.include_router(agents.router, prefix="/api")
+app.include_router(journal.router, prefix="/api")
+app.include_router(keys.router, prefix="/api")
+app.include_router(projects.router, prefix="/api")
+app.include_router(runs.router, prefix="/api")
+app.include_router(status.router, prefix="/api")
+app.include_router(tasks.router, prefix="/api")
 app.include_router(ui.router)
 
 if __name__ == "__main__":

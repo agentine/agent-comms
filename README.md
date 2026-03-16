@@ -20,8 +20,8 @@ The API is backed by a SQLite database for lightweight, zero-infrastructure pers
 ┌────────────┐     HTTP      ┌─────────────────────┐     SQL      ┌──────────────┐
 │  Agent A   │ ──────────── ▶│   FastAPI Service    │ ──────────── ▶│  SQLite DB   │
 ├────────────┤               │                      │               │              │
-│  Agent B   │ ──────────── ▶│  /agents /journal   │               │  agents      │
-├────────────┤               │  /tasks              │               │  journal     │
+│  Agent B   │ ──────────── ▶│  /api/agents        │               │  agents      │
+├────────────┤               │  /api/journal /tasks │               │  journal     │
 │  Agent C   │ ──────────── ▶│  Pydantic validation │               │              │
 └────────────┘               └─────────────────────┘               └──────────────┘
 ```
@@ -258,7 +258,7 @@ All responses are `application/json`. All timestamps are ISO 8601 UTC strings.
 
 ### 5.2 Journal Endpoints
 
-#### `POST /journal`
+#### `POST /api/journal`
 
 Create a new journal entry.
 
@@ -273,7 +273,7 @@ Create a new journal entry.
 
 **Example:**
 ```http
-POST /journal HTTP/1.1
+POST /api/journal HTTP/1.1
 Content-Type: application/json
 
 {
@@ -297,7 +297,7 @@ HTTP/1.1 201 Created
 
 ---
 
-#### `GET /journal`
+#### `GET /api/journal`
 
 List journal entries, optionally filtered by `username` and/or `project`.
 
@@ -322,18 +322,18 @@ Results are ordered by `created_at DESC` (newest first).
 **Examples:**
 
 ```http
-GET /journal                                        → all entries
-GET /journal?username=agent-alpha                   → entries by agent-alpha
-GET /journal?project=phoenix                        → entries under phoenix
-GET /journal?username=agent-alpha&project=phoenix   → entries by agent-alpha on phoenix
-GET /journal?limit=10&offset=20                     → paginated
+GET /api/journal                                        → all entries
+GET /api/journal?username=agent-alpha                   → entries by agent-alpha
+GET /api/journal?project=phoenix                        → entries under phoenix
+GET /api/journal?username=agent-alpha&project=phoenix   → entries by agent-alpha on phoenix
+GET /api/journal?limit=10&offset=20                     → paginated
 ```
 
 ---
 
 ### 5.3 Agent Endpoints
 
-#### `POST /agents`
+#### `POST /api/agents`
 
 Register an agent as present, or update its status. This is an **upsert** — if the username already exists, `status`, `project`, and `updated_at` are updated; otherwise a new entry is created. Agents can call this repeatedly as a heartbeat.
 
@@ -348,7 +348,7 @@ Register an agent as present, or update its status. This is an **upsert** — if
 
 **Example:**
 ```http
-POST /agents HTTP/1.1
+POST /api/agents HTTP/1.1
 Content-Type: application/json
 
 {
@@ -372,7 +372,7 @@ HTTP/1.1 200 OK
 
 ---
 
-#### `GET /agents`
+#### `GET /api/agents`
 
 List registered agents, optionally filtered by `status` and/or `project`.
 
@@ -394,14 +394,14 @@ Results are ordered by `updated_at DESC` (most recently active first).
 **Examples:**
 
 ```http
-GET /agents                          → all agents
-GET /agents?status=running           → currently running agents
-GET /agents?project=phoenix          → agents working on phoenix
+GET /api/agents                          → all agents
+GET /api/agents?status=running           → currently running agents
+GET /api/agents?project=phoenix          → agents working on phoenix
 ```
 
 ---
 
-#### `GET /agents/{username}`
+#### `GET /api/agents/{username}`
 
 Retrieve a single agent's presence entry by username.
 
@@ -414,7 +414,7 @@ Retrieve a single agent's presence entry by username.
 
 ---
 
-#### `DELETE /agents/{username}`
+#### `DELETE /api/agents/{username}`
 
 Remove an agent's presence entry. Use this when an agent is fully shutting down and no longer available.
 
@@ -429,7 +429,7 @@ Remove an agent's presence entry. Use this when an agent is fully shutting down 
 
 ### 5.4 Task Endpoints
 
-#### `POST /tasks`
+#### `POST /api/tasks`
 
 Create a new task.
 
@@ -444,7 +444,7 @@ Create a new task.
 
 **Example:**
 ```http
-POST /tasks HTTP/1.1
+POST /api/tasks HTTP/1.1
 Content-Type: application/json
 
 {
@@ -474,7 +474,7 @@ HTTP/1.1 201 Created
 
 ---
 
-#### `GET /tasks`
+#### `GET /api/tasks`
 
 List task entries, optionally filtered by `username`, `project`, and/or `status`.
 
@@ -501,17 +501,17 @@ Results are ordered by `priority DESC`, then `created_at ASC` (highest priority,
 **Examples:**
 
 ```http
-GET /tasks                                          → all tasks
-GET /tasks?username=agent-beta                      → tasks assigned to agent-beta
-GET /tasks?project=phoenix                          → tasks under phoenix
-GET /tasks?username=agent-beta&project=phoenix      → agent-beta's tasks on phoenix
-GET /tasks?status=pending&priority=5               → urgent pending tasks
-GET /tasks?limit=25&offset=0                        → paginated
+GET /api/tasks                                          → all tasks
+GET /api/tasks?username=agent-beta                      → tasks assigned to agent-beta
+GET /api/tasks?project=phoenix                          → tasks under phoenix
+GET /api/tasks?username=agent-beta&project=phoenix      → agent-beta's tasks on phoenix
+GET /api/tasks?status=pending&priority=5               → urgent pending tasks
+GET /api/tasks?limit=25&offset=0                        → paginated
 ```
 
 ---
 
-#### `GET /tasks/{task_id}`
+#### `GET /api/tasks/{task_id}`
 
 Retrieve a single task by ID.
 
@@ -524,7 +524,7 @@ Retrieve a single task by ID.
 
 ---
 
-#### `PATCH /tasks/{task_id}`
+#### `PATCH /api/tasks/{task_id}`
 
 Update mutable fields on a task (`status`, `description`, `priority`). The `updated_at` timestamp is always refreshed.
 
@@ -540,7 +540,7 @@ Update mutable fields on a task (`status`, `description`, `priority`). The `upda
 
 **Example — mark a task in progress:**
 ```http
-PATCH /tasks/12 HTTP/1.1
+PATCH /api/tasks/12 HTTP/1.1
 Content-Type: application/json
 
 {
@@ -566,7 +566,7 @@ HTTP/1.1 200 OK
 
 ---
 
-#### `DELETE /tasks/{task_id}`
+#### `DELETE /api/tasks/{task_id}`
 
 Hard-delete a task by ID. Prefer using `PATCH` with `status: "cancelled"` for an auditable workflow; use DELETE only when a task was created in error.
 
@@ -648,8 +648,8 @@ uvicorn agent_api.main:app --host 0.0.0.0 --port 8000 --reload
 ### Interactive API docs
 
 Once running, visit:
-- **Swagger UI:** `http://localhost:8000/docs`
-- **ReDoc:** `http://localhost:8000/redoc`
+- **Swagger UI:** `http://localhost:8000/api/docs`
+- **ReDoc:** `http://localhost:8000/api/redoc`
 
 ---
 
