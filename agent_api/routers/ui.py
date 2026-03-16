@@ -197,7 +197,8 @@ def render_task_card(row) -> str:
     {priority_label(m['priority'])}
     {status_badge(m['status'])}
   </div>
-  <div class="text-sm font-medium leading-snug line-clamp-2">{esc(m['title'])}</div>
+  <a class="text-sm font-medium leading-snug line-clamp-2 no-underline text-[#fafafa] hover:text-[#3b82f6] transition-colors cursor-pointer"
+     hx-get="/ui/tasks/{m['id']}" hx-target="#tab-content" hx-push-url="true">{esc(m['title'])}</a>
   {desc_html}
   <div class="mt-auto pt-2.5 flex items-center justify-between text-xs text-[#71717a]">
     <div class="flex items-center gap-2 min-w-0">
@@ -235,7 +236,8 @@ def render_journal_card(row) -> str:
                hx-get="/ui/journal?{pq}" hx-target="#tab-content" hx-push-url="true">{esc(m['project'])}</a>"""
 
     return f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-4
-                    flex flex-col hover:border-[#3f3f46] transition-colors">
+                    flex flex-col hover:border-[#3f3f46] transition-colors cursor-pointer"
+                    hx-get="/ui/journal/{m['id']}" hx-target="#tab-content" hx-push-url="true">
   <div class="flex items-center gap-2 mb-1.5 text-xs text-[#71717a] flex-wrap">
     <span class="font-mono">#{m['id']}</span>
     <span class="text-[#a78bfa] font-medium">{esc(m['username'])}</span>
@@ -263,6 +265,92 @@ def render_journal_compact(row) -> str:
   {project_html}
   <span class="text-sm text-[#a1a1aa] truncate flex-1 min-w-0">{esc(first_line)}</span>
   <span class="text-xs text-[#a1a1aa] shrink-0" title="{esc(m['created_at'])}">{time_ago(m['created_at'])}</span>
+</div>"""
+
+
+def render_task_detail(row) -> str:
+    """Full detail view for a single task."""
+    m = row._mapping
+    is_human = m["username"] == "human"
+    can_act = is_human and m["status"] not in ("done", "cancelled")
+
+    action_btns = ""
+    if can_act:
+        action_btns = f"""
+  <div class="flex gap-2 mt-4">
+    <button class="bg-[#052e16] text-[#4ade80] border border-[#166534] rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer hover:bg-[#14532d] transition-colors"
+            onclick="openActionModal({m['id']},'done')">Mark Done</button>
+    <button class="bg-[#450a0a] text-[#f87171] border border-[#7f1d1d] rounded-md px-3 py-1.5 text-xs font-medium cursor-pointer hover:bg-[#7f1d1d] transition-colors"
+            onclick="openActionModal({m['id']},'cancelled')">Reject</button>
+  </div>"""
+
+    project_html = ""
+    if m["project"]:
+        pq = build_qs(project=m["project"])
+        project_html = f"""<a class="text-[#3b82f6] text-sm no-underline hover:underline cursor-pointer"
+               hx-get="/ui/tasks?{pq}" hx-target="#tab-content" hx-push-url="true">{esc(m['project'])}</a>"""
+
+    desc_html = ""
+    if m.get("description"):
+        desc_html = f"""<div class="mt-4">
+    <div class="text-xs text-[#71717a] font-medium mb-1.5">Description</div>
+    <div class="text-sm whitespace-pre-wrap break-words text-[#d4d4d8] bg-[#09090b] rounded-lg p-4 border border-[#27272a]">{esc(m['description'])}</div>
+  </div>"""
+
+    blocked_html = ""
+    if m.get("blocked_reason"):
+        blocked_html = f"""<div class="mt-4">
+    <div class="text-xs text-[#71717a] font-medium mb-1.5">Blocked Reason</div>
+    <div class="text-sm whitespace-pre-wrap break-words text-[#fbbf24] bg-[#422006]/30 rounded-lg p-4 border border-[#854d0e]/40">{esc(m['blocked_reason'])}</div>
+  </div>"""
+
+    return f"""<div class="mb-4">
+  <a class="text-xs text-[#71717a] hover:text-[#3b82f6] cursor-pointer no-underline transition-colors"
+     hx-get="/ui/tasks" hx-target="#tab-content" hx-push-url="true">&larr; Back to tasks</a>
+</div>
+<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-6 max-w-3xl">
+  <div class="flex items-center gap-2 mb-3 flex-wrap">
+    <span class="text-[#71717a] text-xs font-mono">#{m['id']}</span>
+    {priority_label(m['priority'])}
+    {status_badge(m['status'])}
+  </div>
+  <h2 class="text-lg font-semibold mb-3">{esc(m['title'])}</h2>
+  <div class="flex items-center gap-3 text-sm text-[#a1a1aa]">
+    <span class="text-[#a78bfa] font-medium">{esc(m['username'])}</span>
+    {project_html}
+  </div>
+  {desc_html}
+  {blocked_html}
+  <div class="mt-4 pt-4 border-t border-[#27272a] flex items-center gap-4 text-xs text-[#71717a]">
+    <span>Created {time_tag(m['created_at'])}</span>
+    <span>Updated {time_tag(m['updated_at'])}</span>
+  </div>
+  {action_btns}
+</div>"""
+
+
+def render_journal_detail(row) -> str:
+    """Full detail view for a single journal entry."""
+    m = row._mapping
+
+    project_html = ""
+    if m["project"]:
+        pq = build_qs(project=m["project"])
+        project_html = f"""<a class="text-[#3b82f6] text-sm no-underline hover:underline cursor-pointer"
+               hx-get="/ui/journal?{pq}" hx-target="#tab-content" hx-push-url="true">{esc(m['project'])}</a>"""
+
+    return f"""<div class="mb-4">
+  <a class="text-xs text-[#71717a] hover:text-[#3b82f6] cursor-pointer no-underline transition-colors"
+     hx-get="/ui/journal" hx-target="#tab-content" hx-push-url="true">&larr; Back to journal</a>
+</div>
+<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-6 max-w-3xl">
+  <div class="flex items-center gap-2 mb-3 text-sm text-[#71717a] flex-wrap">
+    <span class="font-mono text-xs">#{m['id']}</span>
+    <span class="text-[#a78bfa] font-medium">{esc(m['username'])}</span>
+    {project_html}
+    <span class="ml-auto">{time_tag(m['created_at'])}</span>
+  </div>
+  <div class="text-sm whitespace-pre-wrap break-words text-[#d4d4d8]">{esc(m['content'])}</div>
 </div>"""
 
 
@@ -1233,8 +1321,10 @@ document.addEventListener('htmx:afterSettle', function(evt) {
     _pendingFocus = null;
   }
 });
-// Auto-close sidebar on navigation (mobile)
+// Auto-close sidebar on user navigation (mobile), but not on auto-refresh
+var _autoRefreshing = false;
 document.addEventListener('htmx:afterSwap', function() {
+  if (_autoRefreshing) return;
   if (window.innerWidth < 1024) {
     var sb = document.getElementById('sidebar');
     var ov = document.getElementById('sidebar-overlay');
@@ -1438,14 +1528,24 @@ setInterval(function() {
   });
 }, 60000);
 
-// Auto-refresh tab content every 30s (skip if user is typing)
+// Auto-refresh tab content every 30s (skip if user is interacting)
 setInterval(function() {
   var ae = document.activeElement;
-  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
+  // Skip if sidebar is open on mobile
+  var sb = document.getElementById('sidebar');
+  if (sb && window.innerWidth < 1024 && !sb.classList.contains('-translate-x-full')) return;
+  // Skip if a modal is open
+  if (document.querySelector('#action-modal, #new-task-modal, #new-key-modal')) return;
   var tc = document.getElementById('tab-content');
   if (tc) {
+    _autoRefreshing = true;
     var url = window.location.pathname + window.location.search;
-    htmx.ajax('GET', url, {target: '#tab-content', swap: 'innerHTML'});
+    htmx.ajax('GET', url, {target: '#tab-content', swap: 'innerHTML'}).then(function() {
+      _autoRefreshing = false;
+    }).catch(function() {
+      _autoRefreshing = false;
+    });
   }
 }, 30000);
 
@@ -1710,6 +1810,28 @@ def ui_tasks_page(
     return HTMLResponse(render_shell("tasks", content, stats_html, presence_html, _human_task_count(db)))
 
 
+@router.get("/ui/tasks/{task_id}", response_class=HTMLResponse)
+def ui_task_detail_page(
+    request: Request,
+    task_id: int,
+    db: Session = Depends(get_db),
+):
+    row = db.execute(select(tasks).where(tasks.c.id == task_id)).first()
+    if not row:
+        not_found = f'<div class="mb-4"><a class="text-xs text-[#71717a] hover:text-[#3b82f6] cursor-pointer no-underline transition-colors" hx-get="/ui/tasks" hx-target="#tab-content" hx-push-url="true">&larr; Back to tasks</a></div><div class="flex flex-col items-center justify-center py-16 text-[#a1a1aa]">{ICONS["inbox"]}<div class="mt-3 text-sm font-medium">Task #{task_id} not found</div></div>'
+        if is_htmx(request):
+            return HTMLResponse(not_found + render_sidebar_nav_oob("tasks", db))
+        stats_html = render_stats_html(db)
+        presence_html = render_presence_html(db)
+        return HTMLResponse(render_shell("tasks", not_found, stats_html, presence_html, _human_task_count(db)))
+    content = render_task_detail(row)
+    if is_htmx(request):
+        return HTMLResponse(content + render_sidebar_nav_oob("tasks", db))
+    stats_html = render_stats_html(db)
+    presence_html = render_presence_html(db)
+    return HTMLResponse(render_shell("tasks", content, stats_html, presence_html, _human_task_count(db)))
+
+
 @router.get("/ui/journal", response_class=HTMLResponse)
 def ui_journal_page(
     request: Request,
@@ -1721,6 +1843,28 @@ def ui_journal_page(
     db: Session = Depends(get_db),
 ):
     content = render_journal_tab(db, search, username, project, sort, offset)
+    if is_htmx(request):
+        return HTMLResponse(content + render_sidebar_nav_oob("journal", db))
+    stats_html = render_stats_html(db)
+    presence_html = render_presence_html(db)
+    return HTMLResponse(render_shell("journal", content, stats_html, presence_html, _human_task_count(db)))
+
+
+@router.get("/ui/journal/{entry_id}", response_class=HTMLResponse)
+def ui_journal_detail_page(
+    request: Request,
+    entry_id: int,
+    db: Session = Depends(get_db),
+):
+    row = db.execute(select(journal).where(journal.c.id == entry_id)).first()
+    if not row:
+        not_found = f'<div class="mb-4"><a class="text-xs text-[#71717a] hover:text-[#3b82f6] cursor-pointer no-underline transition-colors" hx-get="/ui/journal" hx-target="#tab-content" hx-push-url="true">&larr; Back to journal</a></div><div class="flex flex-col items-center justify-center py-16 text-[#a1a1aa]">{ICONS["inbox"]}<div class="mt-3 text-sm font-medium">Journal entry #{entry_id} not found</div></div>'
+        if is_htmx(request):
+            return HTMLResponse(not_found + render_sidebar_nav_oob("journal", db))
+        stats_html = render_stats_html(db)
+        presence_html = render_presence_html(db)
+        return HTMLResponse(render_shell("journal", not_found, stats_html, presence_html, _human_task_count(db)))
+    content = render_journal_detail(row)
     if is_htmx(request):
         return HTMLResponse(content + render_sidebar_nav_oob("journal", db))
     stats_html = render_stats_html(db)
