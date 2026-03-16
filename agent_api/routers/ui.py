@@ -55,6 +55,14 @@ def time_ago(iso_str) -> str:
         return str(iso_str)
 
 
+def time_tag(iso_str) -> str:
+    """Render a timestamp as a styled tooltip span."""
+    ago = time_ago(iso_str)
+    if not ago:
+        return ""
+    return f'<span class="timestamp text-xs text-[#8b949e] cursor-default" data-ts="{esc(iso_str)}">{ago}</span>'
+
+
 def is_htmx(request: Request) -> bool:
     return request.headers.get("HX-Request") == "true"
 
@@ -77,6 +85,9 @@ def check_api_key(db: Session, key: str) -> bool:
 # ── SVG Icons ─────────────────────────────────────────────────────────
 
 ICONS = {
+    "chevron-down": '<svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>',
+    "x": '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+    "inbox": '<svg class="w-10 h-10 text-[#30363d]" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7"/><path d="M2 13h6l2 3h4l2-3h6v5a2 2 0 01-2 2H4a2 2 0 01-2-2v-5z"/></svg>',
     "dashboard": '<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
     "folder": '<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>',
     "tasks": '<svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>',
@@ -179,7 +190,7 @@ def render_task_card(row) -> str:
         desc_html = f'<div class="text-sm whitespace-pre-wrap break-words mt-2 text-[#8b949e] line-clamp-3">{esc(m["description"])}</div>'
 
     return f"""<div class="bg-[#161b22] border border-[#1e2733] rounded-xl p-4 shadow-sm
-                    hover:border-[#30404d] transition-colors flex flex-col" id="task-{m['id']}">
+                    hover:border-[#30404d] hover:shadow-md transition-all flex flex-col" id="task-{m['id']}">
   <div class="flex items-center gap-2 mb-2 flex-wrap">
     <span class="text-[#8b949e] text-xs font-mono cursor-pointer hover:text-[#58a6ff]"
           title="Click to copy #{m['id']}" onclick="navigator.clipboard.writeText('#{m['id']}')">#{m['id']}</span>
@@ -193,7 +204,7 @@ def render_task_card(row) -> str:
       <span class="text-[#bc8cff] font-semibold shrink-0">{esc(m['username'])}</span>
       {project_html}
     </div>
-    <span class="shrink-0" title="{esc(m['updated_at'])}">{time_ago(m['updated_at'])}</span>
+    {time_tag(m['updated_at'])}
   </div>
   {action_btns}
 </div>"""
@@ -225,12 +236,12 @@ def render_journal_card(row) -> str:
                hx-get="/ui/journal?{pq}" hx-target="#tab-content" hx-push-url="true">{esc(m['project'])}</a>"""
 
     return f"""<div class="bg-[#161b22] border border-[#1e2733] rounded-xl p-4 shadow-sm
-                    flex flex-col hover:border-[#30404d] transition-colors">
+                    flex flex-col hover:border-[#30404d] hover:shadow-md transition-all">
   <div class="flex items-center gap-2 mb-2 text-xs text-[#8b949e] flex-wrap">
     <span class="font-mono">#{m['id']}</span>
     <span class="text-[#bc8cff] font-semibold text-[13px]">{esc(m['username'])}</span>
     {project_html}
-    <span class="ml-auto shrink-0" title="{esc(m['created_at'])}">{time_ago(m['created_at'])}</span>
+    <span class="ml-auto shrink-0">{time_tag(m['created_at'])}</span>
   </div>
   <div class="text-sm whitespace-pre-wrap break-words line-clamp-6 flex-1">{esc(m['content'])}</div>
 </div>"""
@@ -317,8 +328,7 @@ def render_project_row(p, task_counts: dict, journal_count: int) -> str:
   <td class="px-2.5 py-2 border-b border-[#1e2733] align-middle">{project_status_badge(m['status'])}</td>
   <td class="px-2.5 py-2 border-b border-[#1e2733] align-middle">{tc_html}</td>
   <td class="px-2.5 py-2 border-b border-[#1e2733] align-middle">{jc_html}</td>
-  <td class="px-2.5 py-2 border-b border-[#1e2733] align-middle text-xs text-[#8b949e] whitespace-nowrap"
-      title="{esc(m['updated_at'])}">{time_ago(m['updated_at'])}</td>
+  <td class="px-2.5 py-2 border-b border-[#1e2733] align-middle whitespace-nowrap">{time_tag(m['updated_at'])}</td>
 </tr>"""
 
 
@@ -327,7 +337,7 @@ def render_key_row(row) -> str:
     return f"""<div class="flex items-center gap-3 px-4 py-2.5 border-b border-[#1e2733] last:border-b-0">
   <span class="font-semibold text-sm min-w-[120px]">{esc(m['name'])}</span>
   <span class="font-mono text-[13px] text-[#8b949e] bg-[#0d1117] px-2 py-0.5 rounded">{esc(m['key'])}</span>
-  <span class="text-xs text-[#8b949e] ml-auto" title="{esc(m['created_at'])}">{time_ago(m['created_at'])}</span>
+  <span class="ml-auto">{time_tag(m['created_at'])}</span>
   <button class="bg-[#3d1a1a] text-[#f85149] border border-[#5a2a2a] rounded-lg px-2.5 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap hover:bg-[#4a2a2a] min-h-[44px] transition-colors"
           data-key-id="{m['id']}" data-key-name="{esc(m['name'])}"
           onclick="revokeKey(+this.dataset.keyId, this.dataset.keyName)">Revoke</button>
@@ -355,25 +365,36 @@ def render_pager(prefix: str, path: str, offset: int, total: int, **params) -> s
     next_label = "Older &rarr;" if prefix == "j" else "Next &rarr;"
 
     return f"""<div class="flex gap-2 justify-center items-center mt-4">
-  <button class="bg-[#161b22] border border-[#1e2733] text-[#e6edf3] px-4 py-2.5 rounded-lg text-[13px] cursor-pointer min-h-[44px] {prev_disabled}"
+  <button class="bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] px-4 py-2 rounded-md text-[13px] cursor-pointer min-h-[36px] hover:bg-[#161b22] transition-colors {prev_disabled}"
           hx-get="{path}?{prev_qs}" hx-target="#tab-content" hx-push-url="true">{prev_label}</button>
   <span class="text-[13px] text-[#8b949e]">{page} / {pages}</span>
-  <button class="bg-[#161b22] border border-[#1e2733] text-[#e6edf3] px-4 py-2.5 rounded-lg text-[13px] cursor-pointer min-h-[44px] {next_disabled}"
+  <button class="bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] px-4 py-2 rounded-md text-[13px] cursor-pointer min-h-[36px] hover:bg-[#161b22] transition-colors {next_disabled}"
           hx-get="{path}?{next_qs}" hx-target="#tab-content" hx-push-url="true">{next_label}</button>
 </div>"""
 
 
 # ── Filter Bar Renderers ─────────────────────────────────────────────
 
-INPUT_CLS = "bg-[#161b22] border border-[#1e2733] text-[#e6edf3] px-2.5 py-2 rounded-lg text-[13px] placeholder:text-[#8b949e] min-h-[44px]"
-SELECT_CLS = "bg-[#161b22] border border-[#1e2733] text-[#e6edf3] px-2.5 py-2 rounded-lg text-[13px] cursor-pointer min-h-[44px]"
+INPUT_CLS = (
+    "bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] px-3 py-2 rounded-md text-[13px]"
+    " placeholder:text-[#484f58] min-h-[36px]"
+    " focus:outline-none focus:ring-2 focus:ring-[#58a6ff]/40 focus:border-[#58a6ff]"
+    " transition-colors"
+)
+SELECT_CLS = (
+    "bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] pl-3 pr-8 py-2 rounded-md text-[13px]"
+    " min-h-[36px] cursor-pointer appearance-none"
+    " focus:outline-none focus:ring-2 focus:ring-[#58a6ff]/40 focus:border-[#58a6ff]"
+    " transition-colors"
+)
 
 
 def _search_input(name: str, value: str, placeholder: str, path: str) -> str:
+    active_border = " !border-[#58a6ff]" if value else ""
     return f"""<div class="relative w-full sm:w-[220px]">
-  <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#8b949e] pointer-events-none">{ICONS["search"]}</span>
+  <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#484f58] pointer-events-none">{ICONS["search"]}</span>
   <input name="{name}" value="{esc(value)}" placeholder="{placeholder}" autocomplete="off"
-         class="{INPUT_CLS} w-full !pl-8"
+         class="{INPUT_CLS} w-full !pl-8{active_border}"
          hx-get="{path}" hx-target="#tab-content" hx-trigger="input changed delay:300ms"
          hx-include="closest form" hx-push-url="true" />
 </div>"""
@@ -384,11 +405,15 @@ def _select(name: str, value: str, options: list[tuple[str, str]], path: str) ->
     for val, label in options:
         sel = " selected" if val == value else ""
         opts.append(f'<option value="{esc(val)}"{sel}>{esc(label)}</option>')
-    return f"""<select name="{name}" class="{SELECT_CLS}"
+    active_border = " !border-[#58a6ff]" if value else ""
+    return f"""<div class="relative inline-block">
+  <select name="{name}" class="{SELECT_CLS}{active_border}"
        hx-get="{path}" hx-target="#tab-content" hx-trigger="change"
        hx-include="closest form" hx-push-url="true">
   {"".join(opts)}
-</select>"""
+  </select>
+  <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[#484f58] pointer-events-none">{ICONS["chevron-down"]}</span>
+</div>"""
 
 
 def _text_input(
@@ -396,10 +421,20 @@ def _text_input(
 ) -> str:
     dl = f' list="{datalist}"' if datalist else ""
     extra = ' data-1p-ignore data-lpignore="true" data-form-type="other"' if name in ("username",) else ""
+    active_border = " !border-[#58a6ff]" if value else ""
     return f"""<input name="{name}" value="{esc(value)}" placeholder="{placeholder}" autocomplete="off"
-       class="{INPUT_CLS}"{dl}{extra}
+       class="{INPUT_CLS}{active_border}"{dl}{extra}
        hx-get="{path}" hx-target="#tab-content" hx-trigger="input changed delay:300ms"
        hx-include="closest form" hx-push-url="true" />"""
+
+
+def _clear_filters_btn(path: str, has_filters: bool) -> str:
+    if not has_filters:
+        return ""
+    return f"""<a class="inline-flex items-center gap-1 text-xs text-[#8b949e] hover:text-[#e6edf3] cursor-pointer transition-colors px-2 py-1.5 rounded-md hover:bg-[#161b22] min-h-[36px] no-underline"
+       hx-get="{path}" hx-target="#tab-content" hx-push-url="true">
+  {ICONS["x"]} Clear filters
+</a>"""
 
 
 # ── Tab Content Renderers ─────────────────────────────────────────────
@@ -572,10 +607,12 @@ def render_projects_tab(db: Session, search: str, status: str, language: str, of
         ("go", "go"),
     ]
 
+    has_filters = bool(search or status or language)
     filters_html = f"""<form class="flex gap-2 mb-4 flex-wrap items-center">
   {_search_input("search", search, "search projects...", path)}
   {_select("status", status, status_options, path)}
   {_select("language", language, lang_options, path)}
+  {_clear_filters_btn(path, has_filters)}
 </form>"""
 
     if rows:
@@ -597,7 +634,7 @@ def render_projects_tab(db: Session, search: str, status: str, language: str, of
   </table>
 </div>"""
     else:
-        list_html = '<div class="text-center text-[#8b949e] py-10 text-sm">No projects found</div>'
+        list_html = f'<div class="flex flex-col items-center justify-center py-16 text-[#8b949e]">{ICONS["inbox"]}<div class="mt-3 text-sm font-medium">No projects found</div><div class="text-xs mt-1">Try adjusting your filters</div></div>'
 
     params = dict(search=search, status=status, language=language)
     pager_html = render_pager("p", path, offset, total, **params)
@@ -644,7 +681,7 @@ def render_tasks_tab(
             items_html = f'<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">{render_task_card(row)}</div>'
             total = 1
         else:
-            items_html = f'<div class="text-center text-[#8b949e] py-10 text-sm">Task {esc(search)} not found</div>'
+            items_html = f'<div class="flex flex-col items-center justify-center py-16 text-[#8b949e]">{ICONS["inbox"]}<div class="mt-3 text-sm font-medium">Task {esc(search)} not found</div></div>'
             total = 0
     else:
         query = select(tasks)
@@ -676,7 +713,7 @@ def render_tasks_tab(
             cards = "".join(render_task_card(r) for r in rows)
             items_html = f'<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">{cards}</div>'
         else:
-            items_html = '<div class="text-center text-[#8b949e] py-10 text-sm">No tasks</div>'
+            items_html = f'<div class="flex flex-col items-center justify-center py-16 text-[#8b949e]">{ICONS["inbox"]}<div class="mt-3 text-sm font-medium">No tasks</div><div class="text-xs mt-1">Create a task or adjust your filters</div></div>'
 
     path = "/ui/tasks"
     status_options = [
@@ -700,6 +737,7 @@ def render_tasks_tab(
     dl_users = "".join(f'<option value="{esc(u)}">' for u in usernames)
     dl_projects = "".join(f'<option value="{esc(p)}">' for p in projects_list)
 
+    has_filters = bool(search or username or project or status or priority)
     filters_html = f"""<form class="flex gap-2 mb-4 flex-wrap items-center">
   {_search_input("search", search, "search or #id...", path)}
   {_text_input("username", username, "agent", path, "dl-users")}
@@ -707,8 +745,9 @@ def render_tasks_tab(
   {_select("status", status, status_options, path)}
   {_select("priority", priority, priority_options, path)}
   {_select("sort", sort, sort_options, path)}
-  <button type="button" class="bg-[#58a6ff] text-black border-none rounded-lg px-3.5 py-2 text-[13px] font-semibold cursor-pointer hover:opacity-90 min-h-[44px] transition-opacity"
+  <button type="button" class="bg-[#e6edf3] text-[#0d1117] border-none rounded-md px-3.5 py-2 text-[13px] font-semibold cursor-pointer hover:bg-[#cdd5de] min-h-[36px] transition-colors"
           onclick="openNewTaskModal()">+ New Task</button>
+  {_clear_filters_btn(path, has_filters)}
 </form>
 <datalist id="dl-users">{dl_users}</datalist>
 <datalist id="dl-projects">{dl_projects}</datalist>"""
@@ -766,7 +805,7 @@ def render_journal_tab(
         cards = "".join(render_journal_card(r) for r in rows)
         items_html = f'<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">{cards}</div>'
     else:
-        items_html = '<div class="text-center text-[#8b949e] py-10 text-sm">No journal entries</div>'
+        items_html = f'<div class="flex flex-col items-center justify-center py-16 text-[#8b949e]">{ICONS["inbox"]}<div class="mt-3 text-sm font-medium">No journal entries</div><div class="text-xs mt-1">Entries will appear as agents log their activity</div></div>'
 
     path = "/ui/journal"
     sort_options = [("desc", "Newest first"), ("asc", "Oldest first")]
@@ -774,11 +813,13 @@ def render_journal_tab(
     dl_users = "".join(f'<option value="{esc(u)}">' for u in usernames)
     dl_projects = "".join(f'<option value="{esc(p)}">' for p in projects_list)
 
+    has_filters = bool(search or username or project)
     filters_html = f"""<form class="flex gap-2 mb-4 flex-wrap items-center">
   {_search_input("search", search, "search content...", path)}
   {_text_input("username", username, "agent", path, "dl-users")}
   {_text_input("project", project, "project", path, "dl-projects")}
   {_select("sort", sort, sort_options, path)}
+  {_clear_filters_btn(path, has_filters)}
 </form>
 <datalist id="dl-users">{dl_users}</datalist>
 <datalist id="dl-projects">{dl_projects}</datalist>"""
@@ -796,7 +837,7 @@ def render_keys_tab(db: Session, api_key: str) -> str:
     authed = check_api_key(db, api_key)
 
     btn = """<div class="flex gap-2 mb-4 flex-wrap items-center">
-  <button type="button" class="bg-[#58a6ff] text-black border-none rounded-lg px-3.5 py-2 text-[13px] font-semibold cursor-pointer hover:opacity-90 min-h-[44px] transition-opacity"
+  <button type="button" class="bg-[#e6edf3] text-[#0d1117] border-none rounded-md px-3.5 py-2 text-[13px] font-semibold cursor-pointer hover:bg-[#cdd5de] min-h-[36px] transition-colors"
           onclick="openNewKeyModal()">+ New Key</button>
 </div>"""
 
@@ -822,7 +863,7 @@ def render_keys_tab(db: Session, api_key: str) -> str:
         items_html += "".join(render_key_row(MaskedRow(r)) for r in rows)
         items_html += "</div>"
     else:
-        items_html = '<div class="text-center text-[#8b949e] py-10 text-sm">No API keys. Auth is currently disabled (open access).</div>'
+        items_html = f'<div class="flex flex-col items-center justify-center py-16 text-[#8b949e]">{ICONS["inbox"]}<div class="mt-3 text-sm font-medium">No API keys</div><div class="text-xs mt-1">Auth is currently disabled (open access)</div></div>'
 
     return f"""{btn}
 <div id="key-banner"></div>
@@ -855,7 +896,8 @@ def render_stats_html(db: Session) -> str:
     agent_pct = int(running_agents / agent_count * 100) if agent_count > 0 else 0
 
     return f"""<div class="flex gap-4 flex-wrap">
-  <div class="bg-[#161b22] border border-[#1e2733] rounded-xl px-5 py-4 flex flex-col min-w-[140px] shadow-md flex-1">
+  <div class="bg-[#161b22] border border-[#1e2733] rounded-xl px-5 py-4 flex flex-col min-w-[140px] shadow-md flex-1 cursor-pointer hover:border-[#30404d] hover:shadow-lg transition-all"
+       hx-get="/ui/tasks" hx-target="#tab-content" hx-push-url="true">
     <span class="text-[28px] font-bold leading-tight">{total_tasks}</span>
     <span class="text-xs text-[#8b949e] uppercase tracking-wider font-medium mt-0.5">Total Tasks</span>
     <div class="mt-3 w-full bg-[#0d1117] rounded-full h-1.5 overflow-hidden">
@@ -869,14 +911,16 @@ def render_stats_html(db: Session) -> str:
       <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#f85149] inline-block"></span>{cancelled}x</span>
     </div>
   </div>
-  <div class="bg-[#161b22] border border-[#1e2733] rounded-xl px-5 py-4 flex flex-col min-w-[140px] shadow-md">
+  <div class="bg-[#161b22] border border-[#1e2733] rounded-xl px-5 py-4 flex flex-col min-w-[140px] shadow-md cursor-pointer hover:border-[#30404d] hover:shadow-lg transition-all"
+       hx-get="/ui/dashboard" hx-target="#tab-content" hx-push-url="true">
     <span class="text-[28px] font-bold leading-tight">{running_agents} <span class="text-base font-normal text-[#8b949e]">/ {agent_count}</span></span>
     <span class="text-xs text-[#8b949e] uppercase tracking-wider font-medium mt-0.5">Agents Online</span>
     <div class="mt-3 w-full bg-[#0d1117] rounded-full h-1.5 overflow-hidden">
       <div class="h-full bg-[#3fb950] rounded-full transition-all" style="width:{agent_pct}%"></div>
     </div>
   </div>
-  <div class="bg-[#161b22] border border-[#1e2733] rounded-xl px-5 py-4 flex flex-col min-w-[140px] shadow-md">
+  <div class="bg-[#161b22] border border-[#1e2733] rounded-xl px-5 py-4 flex flex-col min-w-[140px] shadow-md cursor-pointer hover:border-[#30404d] hover:shadow-lg transition-all"
+       hx-get="/ui/journal" hx-target="#tab-content" hx-push-url="true">
     <span class="text-[28px] font-bold leading-tight">{journal_count}</span>
     <span class="text-xs text-[#8b949e] uppercase tracking-wider font-medium mt-0.5">Journal Entries</span>
   </div>
@@ -923,7 +967,10 @@ def render_sidebar_nav(active: str) -> str:
     ]
     items = []
     for tab_id, label, icon in tabs_def:
-        active_cls = "bg-[#1f2937] text-[#e6edf3]" if tab_id == active else "text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#161b22]"
+        if tab_id == active:
+            active_cls = "bg-[#1f2937] text-[#e6edf3] border-l-2 border-l-[#58a6ff]"
+        else:
+            active_cls = "text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#161b22] border-l-2 border-l-transparent"
         items.append(
             f'<a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium {active_cls}'
             f' transition-colors min-h-[44px] cursor-pointer no-underline"'
@@ -972,6 +1019,20 @@ function toggleSidebar() {
     ov.classList.add('hidden');
   }
 }
+// Restore focus to the active input after htmx swaps (prevents search losing focus)
+document.addEventListener('htmx:beforeSwap', function(evt) {
+  var ae = document.activeElement;
+  if (ae && ae.tagName === 'INPUT' && ae.name && evt.detail.target.id === 'tab-content') {
+    evt.detail._restoreFocus = { name: ae.name, pos: ae.selectionStart };
+  }
+});
+document.addEventListener('htmx:afterSwap', function(evt) {
+  var rf = evt.detail._restoreFocus;
+  if (rf) {
+    var el = document.querySelector('#tab-content [name="' + rf.name + '"]');
+    if (el) { el.focus(); if (rf.pos != null) try { el.setSelectionRange(rf.pos, rf.pos); } catch(e) {} }
+  }
+});
 // Auto-close sidebar on navigation (mobile)
 document.addEventListener('htmx:afterSwap', function() {
   if (window.innerWidth < 1024) {
@@ -996,10 +1057,10 @@ function openActionModal(taskId, status) {
   overlay.innerHTML = '<div class="bg-[#161b22] border border-[#1e2733] rounded-xl p-5 w-[420px] max-w-[90vw]">' +
     '<h2 class="text-base font-semibold mb-1">' + (isDone ? 'Mark Task Done' : 'Reject Task') + '</h2>' +
     '<div class="text-[13px] text-[#8b949e] mb-3">' + (isDone ? 'Provide a brief summary of what was completed.' : 'Provide a reason for rejecting this task.') + '</div>' +
-    '<textarea id="action-summary" class="w-full bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] rounded-lg p-2 text-[13px] font-[inherit] resize-y min-h-[80px]" placeholder="' + (isDone ? 'Summary of work done...' : 'Reason for rejection...') + '"></textarea>' +
+    '<textarea id="action-summary" class="w-full bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] rounded-md p-2.5 text-[13px] font-[inherit] resize-y min-h-[80px] focus:outline-none focus:ring-2 focus:ring-[#58a6ff]/40 focus:border-[#58a6ff] transition-colors" placeholder="' + (isDone ? 'Summary of work done...' : 'Reason for rejection...') + '"></textarea>' +
     '<div class="flex gap-2 justify-end mt-3">' +
-    '<button class="bg-[#30363d] text-[#e6edf3] px-4 py-2 rounded-lg text-[13px] font-semibold cursor-pointer border-none min-h-[44px]" onclick="closeActionModal()">Cancel</button>' +
-    '<button class="' + (isDone ? 'bg-[#3fb950] text-black' : 'bg-[#f85149] text-white') + ' px-4 py-2 rounded-lg text-[13px] font-semibold cursor-pointer border-none min-h-[44px]" id="action-submit" onclick="submitAction()">' + (isDone ? 'Complete' : 'Reject') + '</button>' +
+    '<button class="bg-[#1e2733] text-[#e6edf3] px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer border border-[#30363d] min-h-[36px] hover:bg-[#30363d] transition-colors" onclick="closeActionModal()">Cancel</button>' +
+    '<button class="' + (isDone ? 'bg-[#3fb950] text-black' : 'bg-[#f85149] text-white') + ' px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer border-none min-h-[36px]" id="action-submit" onclick="submitAction()">' + (isDone ? 'Complete' : 'Reject') + '</button>' +
     '</div></div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) closeActionModal(); });
@@ -1039,20 +1100,20 @@ function openNewTaskModal() {
     '<h2 class="text-base font-semibold mb-1">New Task</h2>' +
     '<div class="text-[13px] text-[#8b949e] mb-3">Assign a task to an agent or team member.</div>' +
     '<label class="block text-xs text-[#8b949e] mb-1">Assign to</label>' +
-    '<input id="nt-user" list="dl-users" placeholder="agent" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" class="w-full bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] rounded-lg p-2 text-[13px] mb-2 min-h-[44px]" />' +
+    '<input id="nt-user" list="dl-users" placeholder="agent" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" class="w-full bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] rounded-md p-2.5 text-[13px] mb-2 min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#58a6ff]/40 focus:border-[#58a6ff] transition-colors" />' +
     '<label class="block text-xs text-[#8b949e] mb-1">Title</label>' +
-    '<input id="nt-title" placeholder="Task title" class="w-full bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] rounded-lg p-2 text-[13px] mb-2 min-h-[44px]" />' +
+    '<input id="nt-title" placeholder="Task title" class="w-full bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] rounded-md p-2.5 text-[13px] mb-2 min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#58a6ff]/40 focus:border-[#58a6ff] transition-colors" />' +
     '<div class="flex gap-2.5">' +
     '<div class="flex-1"><label class="block text-xs text-[#8b949e] mb-1">Priority</label>' +
-    '<select id="nt-priority" class="w-full bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] rounded-lg p-2 text-[13px] min-h-[44px]">' +
+    '<select id="nt-priority" class="w-full bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] rounded-md p-2.5 text-[13px] min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#58a6ff]/40 focus:border-[#58a6ff] transition-colors">' +
     '<option value="1">P1 (lowest)</option><option value="2">P2</option><option value="3" selected>P3</option><option value="4">P4</option><option value="5">P5 (highest)</option></select></div>' +
     '<div class="flex-1"><label class="block text-xs text-[#8b949e] mb-1">Project</label>' +
-    '<input id="nt-project" list="dl-projects" placeholder="optional" autocomplete="off" class="w-full bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] rounded-lg p-2 text-[13px] min-h-[44px]" /></div></div>' +
+    '<input id="nt-project" list="dl-projects" placeholder="optional" autocomplete="off" class="w-full bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] rounded-md p-2.5 text-[13px] min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#58a6ff]/40 focus:border-[#58a6ff] transition-colors" /></div></div>' +
     '<label class="block text-xs text-[#8b949e] mb-1 mt-2.5">Description</label>' +
     '<textarea id="nt-desc" placeholder="Describe what needs to be done..." class="w-full bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] rounded-lg p-2 text-[13px] font-[inherit] resize-y min-h-[80px]"></textarea>' +
     '<div class="flex gap-2 justify-end mt-3">' +
-    '<button class="bg-[#30363d] text-[#e6edf3] px-4 py-2 rounded-lg text-[13px] font-semibold cursor-pointer border-none min-h-[44px]" onclick="closeNewTaskModal()">Cancel</button>' +
-    '<button class="bg-[#3fb950] text-black px-4 py-2 rounded-lg text-[13px] font-semibold cursor-pointer border-none min-h-[44px]" id="nt-submit" onclick="submitNewTask()">Create Task</button>' +
+    '<button class="bg-[#1e2733] text-[#e6edf3] px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer border border-[#30363d] min-h-[36px] hover:bg-[#30363d] transition-colors" onclick="closeNewTaskModal()">Cancel</button>' +
+    '<button class="bg-[#3fb950] text-black px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer border-none min-h-[36px]" id="nt-submit" onclick="submitNewTask()">Create Task</button>' +
     '</div></div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) closeNewTaskModal(); });
@@ -1099,10 +1160,10 @@ function openNewKeyModal() {
     '<h2 class="text-base font-semibold mb-1">Create API Key</h2>' +
     '<div class="text-[13px] text-[#8b949e] mb-3">Give this key a name to identify what system or agent uses it.</div>' +
     '<label class="block text-xs text-[#8b949e] mb-1">Name</label>' +
-    '<input id="nk-name" placeholder="e.g. ci-pipeline, agent-alpha, matt" autocomplete="off" class="w-full bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] rounded-lg p-2 text-[13px] min-h-[44px]" />' +
+    '<input id="nk-name" placeholder="e.g. ci-pipeline, agent-alpha, matt" autocomplete="off" class="w-full bg-[#0d1117] border border-[#1e2733] text-[#e6edf3] rounded-md p-2.5 text-[13px] min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#58a6ff]/40 focus:border-[#58a6ff] transition-colors" />' +
     '<div class="flex gap-2 justify-end mt-3">' +
-    '<button class="bg-[#30363d] text-[#e6edf3] px-4 py-2 rounded-lg text-[13px] font-semibold cursor-pointer border-none min-h-[44px]" onclick="closeNewKeyModal()">Cancel</button>' +
-    '<button class="bg-[#3fb950] text-black px-4 py-2 rounded-lg text-[13px] font-semibold cursor-pointer border-none min-h-[44px]" id="nk-submit" onclick="submitNewKey()">Create</button>' +
+    '<button class="bg-[#1e2733] text-[#e6edf3] px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer border border-[#30363d] min-h-[36px] hover:bg-[#30363d] transition-colors" onclick="closeNewKeyModal()">Cancel</button>' +
+    '<button class="bg-[#3fb950] text-black px-4 py-2 rounded-md text-[13px] font-medium cursor-pointer border-none min-h-[36px]" id="nk-submit" onclick="submitNewKey()">Create</button>' +
     '</div></div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) closeNewKeyModal(); });
@@ -1167,6 +1228,38 @@ SHELL_CSS = """
   .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .line-clamp-6 { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* Timestamp tooltips */
+  .timestamp { position: relative; }
+  .timestamp:hover::after {
+    content: attr(data-ts);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e2733;
+    border: 1px solid #30363d;
+    color: #e6edf3;
+    font-size: 11px;
+    font-family: monospace;
+    padding: 4px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+    z-index: 50;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
+  .timestamp:hover::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: #1e2733;
+    z-index: 50;
+    pointer-events: none;
+  }
 """
 
 
