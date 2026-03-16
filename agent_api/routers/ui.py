@@ -1020,17 +1020,23 @@ function toggleSidebar() {
   }
 }
 // Restore focus to the active input after htmx swaps (prevents search losing focus)
+var _pendingFocus = null;
 document.addEventListener('htmx:beforeSwap', function(evt) {
   var ae = document.activeElement;
-  if (ae && ae.tagName === 'INPUT' && ae.name && evt.detail.target.id === 'tab-content') {
-    evt.detail._restoreFocus = { name: ae.name, pos: ae.selectionStart };
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA') && ae.name && evt.detail.target.id === 'tab-content') {
+    _pendingFocus = { name: ae.name, pos: ae.selectionStart, end: ae.selectionEnd };
+  } else {
+    _pendingFocus = null;
   }
 });
-document.addEventListener('htmx:afterSwap', function(evt) {
-  var rf = evt.detail._restoreFocus;
-  if (rf) {
-    var el = document.querySelector('#tab-content [name="' + rf.name + '"]');
-    if (el) { el.focus(); if (rf.pos != null) try { el.setSelectionRange(rf.pos, rf.pos); } catch(e) {} }
+document.addEventListener('htmx:afterSettle', function(evt) {
+  if (_pendingFocus && evt.detail.target.id === 'tab-content') {
+    var el = document.querySelector('#tab-content [name="' + _pendingFocus.name + '"]');
+    if (el) {
+      el.focus();
+      try { el.setSelectionRange(_pendingFocus.pos, _pendingFocus.end); } catch(e) {}
+    }
+    _pendingFocus = null;
   }
 });
 // Auto-close sidebar on navigation (mobile)
