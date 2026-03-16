@@ -39,6 +39,7 @@ def create_journal_entry(body: JournalCreate, db: Session = Depends(get_db)):
 def list_journal_entries(
     username: str | None = Query(default=None),
     project: str | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=200),
     sort: Literal["asc", "desc"] = Query(default="desc"),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
@@ -53,6 +54,11 @@ def list_journal_entries(
     if project is not None:
         query = query.where(journal.c.project == project)
         count_query = count_query.where(journal.c.project == project)
+    if search is not None:
+        term = f"%{search}%"
+        cond = journal.c.content.like(term)
+        query = query.where(cond)
+        count_query = count_query.where(cond)
 
     total = db.execute(count_query).scalar()
     order = journal.c.created_at.asc() if sort == "asc" else journal.c.created_at.desc()

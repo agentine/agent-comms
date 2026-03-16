@@ -60,6 +60,7 @@ def list_tasks(
     status: str | None = Query(default=None),
     priority: int | None = Query(default=None, ge=1, le=5),
     older_than: str | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=200),
     sort: Literal["asc", "desc"] = Query(default="desc"),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
@@ -80,6 +81,11 @@ def list_tasks(
     if priority is not None:
         query = query.where(tasks.c.priority == priority)
         count_query = count_query.where(tasks.c.priority == priority)
+    if search is not None:
+        term = f"%{search}%"
+        cond = tasks.c.title.like(term) | tasks.c.description.like(term)
+        query = query.where(cond)
+        count_query = count_query.where(cond)
     if older_than is not None and status == "blocked":
         try:
             delta = _parse_duration(older_than)

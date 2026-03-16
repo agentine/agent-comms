@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 from sqlalchemy import func, select, union
 from sqlalchemy.orm import Session
 
-from agent_api.database import SessionLocal, agents, journal, tasks
+from agent_api.database import SessionLocal, agents, journal, projects_table, tasks
 
 router = APIRouter(tags=["ui"])
 
@@ -28,6 +28,12 @@ def ui_stats(db: Session = Depends(get_db)):
         select(func.count()).select_from(agents).where(agents.c.status == "running")
     ).scalar()
     journal_count = db.execute(select(func.count()).select_from(journal)).scalar()
+    human_actionable = db.execute(
+        select(func.count())
+        .select_from(tasks)
+        .where(tasks.c.username == "human")
+        .where(tasks.c.status.in_(["pending", "in_progress", "blocked"]))
+    ).scalar()
     return {
         "tasks": {
             "total": total_tasks,
@@ -37,6 +43,7 @@ def ui_stats(db: Session = Depends(get_db)):
             "done": task_counts.get("done", 0),
             "cancelled": task_counts.get("cancelled", 0),
         },
+        "human_actionable": human_actionable,
         "agents": {"total": agent_count, "running": running_agents},
         "journal": {"total": journal_count},
     }
@@ -65,6 +72,74 @@ def ui_filters(db: Session = Depends(get_db)):
     return {"usernames": usernames, "projects": projects}
 
 
+@router.get("/ui/projects")
+def ui_projects(
+    status: str | None = Query(default=None),
+    language: str | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    query = select(projects_table)
+    count_query = select(func.count()).select_from(projects_table)
+
+    if status is not None:
+        query = query.where(projects_table.c.status == status)
+        count_query = count_query.where(projects_table.c.status == status)
+    if language is not None:
+        query = query.where(projects_table.c.language == language)
+        count_query = count_query.where(projects_table.c.language == language)
+    if search is not None:
+        term = f"%{search}%"
+        cond = projects_table.c.name.like(term) | projects_table.c.description.like(
+            term
+        )
+        query = query.where(cond)
+        count_query = count_query.where(cond)
+
+    total = db.execute(count_query).scalar()
+    rows = db.execute(
+        query.order_by(projects_table.c.updated_at.desc()).limit(limit).offset(offset)
+    ).fetchall()
+
+    project_names = [r._mapping["name"] for r in rows]
+
+    # Batch task counts: {project: {status: count}}
+    task_counts_map: dict[str, dict[str, int]] = {}
+    if project_names:
+        tc_rows = db.execute(
+            select(tasks.c.project, tasks.c.status, func.count())
+            .where(tasks.c.project.in_(project_names))
+            .group_by(tasks.c.project, tasks.c.status)
+        ).all()
+        for proj, st, cnt in tc_rows:
+            task_counts_map.setdefault(proj, {})[st] = cnt
+
+    # Batch journal counts: {project: count}
+    journal_counts_map: dict[str, int] = {}
+    if project_names:
+        jc_rows = db.execute(
+            select(journal.c.project, func.count())
+            .where(journal.c.project.in_(project_names))
+            .group_by(journal.c.project)
+        ).all()
+        journal_counts_map = {proj: cnt for proj, cnt in jc_rows}
+
+    items = []
+    for row in rows:
+        name = row._mapping["name"]
+        items.append(
+            {
+                **row._mapping,
+                "task_counts": task_counts_map.get(name, {}),
+                "journal_count": journal_counts_map.get(name, 0),
+            }
+        )
+
+    return {"total": total, "items": items}
+
+
 HTML = """\
 <!DOCTYPE html>
 <html lang="en">
@@ -91,6 +166,13 @@ HTML = """\
          padding: 6px 10px; border-radius: 6px; font-size: 13px; }
   .filters input::placeholder { color: var(--muted); }
   .filters select { cursor: pointer; }
+  .task-id { color: var(--muted); font-size: 12px; font-family: 'SF Mono', SFMono-Regular, Consolas, monospace;
+             cursor: pointer; }
+  .task-id:hover { color: var(--accent); }
+  .search-bar { position: relative; }
+  .search-bar input { width: 220px; padding-left: 28px !important; }
+  .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+                 color: var(--muted); font-size: 13px; pointer-events: none; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
   .badge-pending { background: #30363d; color: var(--muted); }
   .badge-in_progress { background: #1a3a2a; color: var(--green); }
@@ -160,6 +242,10 @@ HTML = """\
   .stat-breakdown { display: flex; gap: 10px; margin-top: 4px; font-size: 11px; color: var(--muted); }
   .stat-breakdown span { display: flex; align-items: center; gap: 3px; }
   .stat-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .stat-card.human-alert { border-color: var(--yellow); cursor: pointer; }
+  .stat-card.human-alert:hover { background: #2a2210; }
+  .stat-card.human-alert .stat-value { color: var(--yellow); }
+  .stat-card.human-alert .stat-label { color: var(--yellow); }
   .btn-new-task { background: var(--accent); color: #000; border: none; border-radius: 6px;
                   padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
   .btn-new-task:hover { opacity: 0.9; }
@@ -183,6 +269,38 @@ HTML = """\
   .key-created-banner .key-full { font-family: 'SF Mono', SFMono-Regular, Consolas, monospace; font-size: 13px;
                                    color: var(--green); word-break: break-all; user-select: all; }
   .key-created-banner .key-warn { font-size: 12px; color: var(--yellow); margin-top: 4px; }
+  .tbl-wrap { overflow-x: auto; }
+  .proj-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .proj-table th { text-align: left; padding: 8px 10px; border-bottom: 2px solid var(--border);
+                   color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+                   font-weight: 600; white-space: nowrap; }
+  .proj-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .proj-table tr:hover td { background: rgba(88,166,255,0.04); }
+  .proj-name { font-weight: 600; color: var(--accent); text-decoration: none; font-size: 13px; }
+  .proj-name:hover { text-decoration: underline; }
+  .lang-tag { padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+  .lang-python { background: #1a2a1a; color: #3fb950; }
+  .lang-node { background: #2a2a1a; color: var(--yellow); }
+  .lang-go { background: #1a2a3d; color: var(--accent); }
+  .badge-discovery { background: #30363d; color: var(--muted); }
+  .badge-planning { background: #2a1a3d; color: var(--purple); }
+  .badge-development { background: #1a3a2a; color: var(--green); }
+  .badge-testing { background: #3d2a1a; color: var(--yellow); }
+  .badge-documentation { background: #1a2a3d; color: var(--accent); }
+  .badge-published { background: #1a3a2a; color: var(--green); border: 1px solid #2a5a3a; }
+  .badge-maintained { background: #1a3a2a; color: var(--green); }
+  .badge-release { background: #3d2a1a; color: var(--yellow); }
+  .tc { font-size: 11px; display: inline-flex; gap: 4px; flex-wrap: wrap; }
+  .tc span { padding: 1px 5px; border-radius: 3px; cursor: pointer; }
+  .tc span:hover { opacity: 0.8; }
+  .tc-p { background: #30363d; color: var(--muted); }
+  .tc-a { background: #1a3a2a; color: var(--green); }
+  .tc-b { background: #3d2a1a; color: var(--yellow); }
+  .tc-d { background: #1a2a3d; color: var(--accent); }
+  .jc-link { color: var(--muted); cursor: pointer; font-size: 12px; }
+  .jc-link:hover { color: var(--accent); text-decoration: underline; }
+  .proj-desc { color: var(--muted); font-size: 12px; max-width: 200px; overflow: hidden;
+               text-overflow: ellipsis; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -200,14 +318,47 @@ HTML = """\
   </div>
   <div class="stats-bar" id="stats-bar"></div>
   <div class="tabs">
-    <button class="tab active" data-tab="journal">Journal</button>
+    <button class="tab active" data-tab="projects">Projects</button>
     <button class="tab" data-tab="tasks">Tasks</button>
+    <button class="tab" data-tab="journal">Journal</button>
     <button class="tab" data-tab="keys">Keys</button>
   </div>
 
-  <!-- Journal view -->
-  <div id="journal-view">
+  <!-- Projects view -->
+  <div id="projects-view">
     <div class="filters">
+      <div class="search-bar"><span class="search-icon">&#x1F50D;</span><input id="p-search" placeholder="search projects..." autocomplete="off" /></div>
+      <select id="p-status">
+        <option value="">all statuses</option>
+        <option value="discovery">discovery</option>
+        <option value="planning">planning</option>
+        <option value="development">development</option>
+        <option value="testing">testing</option>
+        <option value="documentation">documentation</option>
+        <option value="published">published</option>
+        <option value="maintained">maintained</option>
+      </select>
+      <select id="p-language">
+        <option value="">all languages</option>
+        <option value="python">python</option>
+        <option value="node">node</option>
+        <option value="go">go</option>
+      </select>
+      <label class="auto-refresh"><input type="checkbox" id="p-auto" checked> auto-refresh</label>
+    </div>
+    <div class="count" id="p-count"></div>
+    <div class="tbl-wrap" id="p-list"></div>
+    <div class="pager">
+      <button id="p-prev" disabled>&larr; Prev</button>
+      <span id="p-page"></span>
+      <button id="p-next">Next &rarr;</button>
+    </div>
+  </div>
+
+  <!-- Journal view -->
+  <div id="journal-view" style="display:none">
+    <div class="filters">
+      <div class="search-bar"><span class="search-icon">&#x1F50D;</span><input id="j-search" placeholder="search content..." autocomplete="off" /></div>
       <input id="j-user" placeholder="agent" list="dl-users" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
       <input id="j-project" placeholder="project" list="dl-projects" autocomplete="off" />
       <select id="j-sort">
@@ -228,6 +379,7 @@ HTML = """\
   <!-- Tasks view -->
   <div id="tasks-view" style="display:none">
     <div class="filters">
+      <div class="search-bar"><span class="search-icon">&#x1F50D;</span><input id="t-search" placeholder="search or #id..." autocomplete="off" /></div>
       <input id="t-user" placeholder="agent" list="dl-users" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
       <input id="t-project" placeholder="project" list="dl-projects" autocomplete="off" />
       <select id="t-status">
@@ -277,9 +429,10 @@ HTML = """\
 
 <script>
 const PER_PAGE = 30;
-let jOffset = 0, tOffset = 0;
-let jTotal = 0, tTotal = 0;
+let jOffset = 0, tOffset = 0, pOffset = 0;
+let jTotal = 0, tTotal = 0, pTotal = 0;
 let refreshTimer = null;
+const PIPELINE = ['discovery','planning','development','testing','documentation','published','maintained'];
 
 // API key management
 function getApiKey() { return localStorage.getItem('agent_comms_api_key') || ''; }
@@ -316,8 +469,10 @@ function renderJournalEntry(e) {
   return `<div class="card">
     <div class="card-header">
       <div class="card-meta">
+        <span class="task-id">#${e.id}</span>
         <span class="username">${esc(e.username)}</span>
-        ${e.project ? `<a class="project-tag" href="https://github.com/agentine/${encodeURIComponent(e.project)}" target="_blank">${esc(e.project)}</a>` : ''}
+        ${e.project ? `<span class="project-tag" style="cursor:pointer" onclick="navJournal('${esc(e.project)}')">${esc(e.project)}</span>
+          <a href="https://github.com/agentine/${encodeURIComponent(e.project)}" target="_blank" title="Open on GitHub" style="color:var(--muted);font-size:11px;text-decoration:none">&#x2197;</a>` : ''}
       </div>
       <div class="card-meta"><span title="${esc(e.created_at)}">${timeAgo(e.created_at)}</span></div>
     </div>
@@ -328,9 +483,10 @@ function renderJournalEntry(e) {
 function renderTask(t) {
   const isHuman = t.username === 'human';
   const canAct = isHuman && t.status !== 'done' && t.status !== 'cancelled';
-  return `<div class="card">
+  return `<div class="card" id="task-${t.id}">
     <div class="card-header">
       <div style="display:flex;align-items:center;gap:8px">
+        <span class="task-id" title="Click to copy #${t.id}" onclick="navigator.clipboard.writeText('#${t.id}')">#${t.id}</span>
         <span class="priority p${t.priority}">P${t.priority}</span>
         <span class="badge badge-${t.status}">${t.status}</span>
         <span class="card-title">${esc(t.title)}</span>
@@ -342,7 +498,8 @@ function renderTask(t) {
       </div>
     </div>
     <div class="card-meta" style="margin-top:4px">
-      ${t.project ? `<a class="project-tag" href="https://github.com/agentine/${encodeURIComponent(t.project)}" target="_blank">${esc(t.project)}</a>` : ''}
+      ${t.project ? `<span class="project-tag" style="cursor:pointer" onclick="navTasks('${esc(t.project)}','')">${esc(t.project)}</span>
+          <a href="https://github.com/agentine/${encodeURIComponent(t.project)}" target="_blank" title="Open on GitHub" style="color:var(--muted);font-size:11px;text-decoration:none">&#x2197;</a>` : ''}
       <span title="${esc(t.created_at)}">created ${timeAgo(t.created_at)}</span>
       <span title="${esc(t.updated_at)}">updated ${timeAgo(t.updated_at)}</span>
     </div>
@@ -355,8 +512,74 @@ function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function langClass(l) { return 'lang-' + (l === 'javascript' ? 'node' : l); }
+
+function renderProjectRow(p) {
+  const tc = p.task_counts || {};
+  const pend = tc.pending || 0, act = tc.in_progress || 0, blk = tc.blocked || 0, done = tc.done || 0;
+  const total = pend + act + blk + done + (tc.cancelled || 0);
+  return `<tr>
+    <td>
+      <a class="proj-name" href="https://github.com/agentine/${encodeURIComponent(p.name)}" target="_blank">${esc(p.name)}</a>
+      ${p.description ? `<div class="proj-desc" title="${esc(p.description)}">${esc(p.description)}</div>` : ''}
+    </td>
+    <td><span class="lang-tag ${langClass(p.language)}">${esc(p.language)}</span></td>
+    <td><span class="badge badge-${p.status}">${esc(p.status)}</span></td>
+    <td>
+      ${total > 0 ? `<span class="tc">
+        ${pend ? `<span class="tc-p" onclick="navTasks('${esc(p.name)}','pending')">${pend}p</span>` : ''}
+        ${act ? `<span class="tc-a" onclick="navTasks('${esc(p.name)}','in_progress')">${act}a</span>` : ''}
+        ${blk ? `<span class="tc-b" onclick="navTasks('${esc(p.name)}','blocked')">${blk}b</span>` : ''}
+        ${done ? `<span class="tc-d" onclick="navTasks('${esc(p.name)}','done')">${done}d</span>` : ''}
+      </span>` : '<span style="color:var(--muted);font-size:12px">-</span>'}
+    </td>
+    <td>${p.journal_count > 0
+      ? `<span class="jc-link" onclick="navJournal('${esc(p.name)}')">${p.journal_count}</span>`
+      : '<span style="color:var(--muted);font-size:12px">-</span>'}</td>
+    <td style="font-size:12px;color:var(--muted);white-space:nowrap" title="${esc(p.updated_at)}">${timeAgo(p.updated_at)}</td>
+  </tr>`;
+}
+
+async function loadProjects() {
+  const p = qs({ search: g('p-search').value, status: g('p-status').value,
+                 language: g('p-language').value, limit: PER_PAGE, offset: pOffset });
+  const res = await fetch('/ui/projects?' + p);
+  const data = await res.json();
+  pTotal = data.total;
+  if (data.items.length) {
+    g('p-list').innerHTML = `<table class="proj-table">
+      <thead><tr><th>Project</th><th>Lang</th><th>Status</th><th>Tasks</th><th>Journal</th><th>Updated</th></tr></thead>
+      <tbody>${data.items.map(renderProjectRow).join('')}</tbody>
+    </table>`;
+  } else {
+    g('p-list').innerHTML = '<div class="empty">No projects found</div>';
+  }
+  updatePager('p', pOffset, pTotal);
+}
+
+function navTasks(project, status) {
+  switchTab('tasks');
+  g('t-user').value = '';
+  g('t-project').value = project || '';
+  g('t-status').value = status || '';
+  g('t-priority').value = '';
+  g('t-search').value = '';
+  tOffset = 0;
+  loadTasks();
+}
+
+function navJournal(project) {
+  switchTab('journal');
+  g('j-user').value = '';
+  g('j-project').value = project || '';
+  g('j-search').value = '';
+  jOffset = 0;
+  loadJournal();
+}
+
 async function loadJournal() {
   const p = qs({ username: g('j-user').value, project: g('j-project').value,
+                 search: g('j-search').value,
                  sort: g('j-sort').value, limit: PER_PAGE, offset: jOffset });
   const res = await fetch('/journal?' + p);
   const data = await res.json();
@@ -368,8 +591,28 @@ async function loadJournal() {
 }
 
 async function loadTasks() {
+  const searchVal = g('t-search').value.trim();
+  const idMatch = searchVal.match(/^#(\\d+)$/);
+  if (idMatch) {
+    // Direct task ID lookup
+    try {
+      const res = await fetch('/tasks/' + idMatch[1]);
+      if (res.ok) {
+        const t = await res.json();
+        tTotal = 1;
+        g('t-list').innerHTML = renderTask(t);
+        updatePager('t', 0, 1);
+        return;
+      }
+    } catch (e) {}
+    g('t-list').innerHTML = '<div class="empty">Task ' + esc(searchVal) + ' not found</div>';
+    tTotal = 0;
+    updatePager('t', 0, 0);
+    return;
+  }
   const p = qs({ username: g('t-user').value, project: g('t-project').value,
                  status: g('t-status').value, priority: g('t-priority').value,
+                 search: searchVal,
                  sort: g('t-sort').value, limit: PER_PAGE, offset: tOffset });
   const res = await fetch('/tasks?' + p);
   const data = await res.json();
@@ -391,20 +634,26 @@ function updatePager(prefix, offset, total) {
 
 function g(id) { return document.getElementById(id); }
 
+const views = ['projects','tasks','journal','keys'];
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const btn = document.querySelector(`[data-tab="${name}"]`);
+  if (btn) btn.classList.add('active');
+  views.forEach(v => {
+    const el = g(v + '-view');
+    if (el) el.style.display = v === name ? '' : 'none';
+  });
+  refresh();
+}
+
 // Tabs
 document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    const which = tab.dataset.tab;
-    g('journal-view').style.display = which === 'journal' ? '' : 'none';
-    g('tasks-view').style.display = which === 'tasks' ? '' : 'none';
-    g('keys-view').style.display = which === 'keys' ? '' : 'none';
-    refresh();
-  });
+  tab.addEventListener('click', () => switchTab(tab.dataset.tab));
 });
 
 // Pagination
+g('p-prev').onclick = () => { pOffset = Math.max(0, pOffset - PER_PAGE); loadProjects(); };
+g('p-next').onclick = () => { pOffset += PER_PAGE; loadProjects(); };
 g('j-prev').onclick = () => { jOffset = Math.max(0, jOffset - PER_PAGE); loadJournal(); };
 g('j-next').onclick = () => { jOffset += PER_PAGE; loadJournal(); };
 g('t-prev').onclick = () => { tOffset = Math.max(0, tOffset - PER_PAGE); loadTasks(); };
@@ -412,20 +661,26 @@ g('t-next').onclick = () => { tOffset += PER_PAGE; loadTasks(); };
 
 // Filter on change (debounced)
 let filterTimeout;
-['j-user','j-project'].forEach(id => g(id).addEventListener('input', () => {
+['j-user','j-project','j-search'].forEach(id => g(id).addEventListener('input', () => {
   clearTimeout(filterTimeout);
   filterTimeout = setTimeout(() => { jOffset = 0; loadJournal(); }, 300);
 }));
-['t-user','t-project'].forEach(id => g(id).addEventListener('input', () => {
+['t-user','t-project','t-search'].forEach(id => g(id).addEventListener('input', () => {
   clearTimeout(filterTimeout);
   filterTimeout = setTimeout(() => { tOffset = 0; loadTasks(); }, 300);
 }));
 ['t-status','t-priority','t-sort'].forEach(id => g(id).addEventListener('change', () => { tOffset = 0; loadTasks(); }));
 g('j-sort').addEventListener('change', () => { jOffset = 0; loadJournal(); });
+g('p-search').addEventListener('input', () => {
+  clearTimeout(filterTimeout);
+  filterTimeout = setTimeout(() => { pOffset = 0; loadProjects(); }, 300);
+});
+['p-status','p-language'].forEach(id => g(id).addEventListener('change', () => { pOffset = 0; loadProjects(); }));
 
 function refresh() {
   const active = document.querySelector('.tab.active').dataset.tab;
-  if (active === 'journal') loadJournal();
+  if (active === 'projects') loadProjects();
+  else if (active === 'journal') loadJournal();
   else if (active === 'tasks') loadTasks();
   else if (active === 'keys') loadKeys();
 }
@@ -437,6 +692,7 @@ function startAutoRefresh() {
     loadPresence();
     loadStats();
     const active = document.querySelector('.tab.active').dataset.tab;
+    if (active === 'projects' && g('p-auto').checked) loadProjects();
     if (active === 'journal' && g('j-auto').checked) loadJournal();
     if (active === 'tasks' && g('t-auto').checked) loadTasks();
   }, 5000);
@@ -555,7 +811,11 @@ async function loadStats() {
       <div class="stat-card">
         <span class="stat-value">${s.journal.total}</span>
         <span class="stat-label">Journal Entries</span>
-      </div>`;
+      </div>
+      ${s.human_actionable > 0 ? `<div class="stat-card human-alert" onclick="showHumanTasks()" title="Click to view pending human tasks">
+        <span class="stat-value">${s.human_actionable}</span>
+        <span class="stat-label">Human Action Needed</span>
+      </div>` : ''}`;
   } catch (e) {}
 }
 
@@ -735,11 +995,20 @@ async function revokeKey(id, name) {
   }
 }
 
+function showHumanTasks() {
+  g('t-user').value = 'human';
+  g('t-status').value = 'pending';
+  g('t-priority').value = '';
+  g('t-search').value = '';
+  tOffset = 0;
+  switchTab('tasks');
+}
+
 // Initial load
 loadPresence();
 loadFilters();
 loadStats();
-loadJournal();
+loadProjects();
 </script>
 </body>
 </html>
