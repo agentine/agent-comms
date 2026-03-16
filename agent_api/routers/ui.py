@@ -1107,8 +1107,10 @@ function openNewTaskModal() {
     '<input id="nt-title" placeholder="Task title" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-sm mb-2 min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors" />' +
     '<div class="flex gap-2.5">' +
     '<div class="flex-1"><label class="block text-xs text-[#a1a1aa] mb-1">Priority</label>' +
-    '<select id="nt-priority" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-sm min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors">' +
-    '<option value="1">P1 (lowest)</option><option value="2">P2</option><option value="3" selected>P3</option><option value="4">P4</option><option value="5">P5 (highest)</option></select></div>' +
+    '<div class="relative">' +
+    '<select id="nt-priority" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md pl-3 pr-8 py-2.5 text-sm min-h-[36px] appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors">' +
+    '<option value="1">P1 (lowest)</option><option value="2">P2</option><option value="3" selected>P3</option><option value="4">P4</option><option value="5">P5 (highest)</option></select>' +
+    '<span class="absolute right-2 top-1/2 -translate-y-1/2 text-[#52525b] pointer-events-none"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span></div></div>' +
     '<div class="flex-1"><label class="block text-xs text-[#a1a1aa] mb-1">Project</label>' +
     '<input id="nt-project" list="dl-projects" placeholder="optional" autocomplete="off" class="w-full bg-[#09090b] border border-[#27272a] text-[#fafafa] rounded-md p-2.5 text-sm min-h-[36px] focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/40 focus:border-[#3b82f6] transition-colors" /></div></div>' +
     '<label class="block text-xs text-[#a1a1aa] mb-1 mt-2.5">Description</label>' +
