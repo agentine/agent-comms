@@ -883,22 +883,6 @@ def render_stats_html(db: Session) -> str:
 </div>"""
 
 
-def render_human_alert_html(db: Session) -> str:
-    count = db.execute(
-        select(func.count()).select_from(tasks)
-        .where(tasks.c.username == "human")
-        .where(tasks.c.status.in_(["pending", "in_progress", "blocked"]))
-    ).scalar() or 0
-    if count == 0:
-        return ""
-    hq = build_qs(username="human", status="pending")
-    return f"""<div class="bg-[#2a2210] border border-[#d29922] rounded-xl px-5 py-3 mb-6 flex items-center gap-3 cursor-pointer shadow-md hover:bg-[#332b14] transition-colors"
-     hx-get="/ui/tasks?{hq}" hx-target="#tab-content" hx-push-url="true">
-  <span class="text-[#d29922]">{ICONS["alert"]}</span>
-  <span class="font-semibold text-sm text-[#d29922]">{count} task{"s" if count != 1 else ""} need{"" if count != 1 else "s"} human action</span>
-</div>"""
-
-
 def render_presence_html(db: Session) -> str:
     rows = db.execute(
         select(agents).order_by(agents.c.updated_at.desc())
@@ -1251,9 +1235,6 @@ def render_shell(active_tab: str, content: str, stats_html: str, presence_html: 
       {stats_html}
     </div>
 
-    <div id="human-alert" hx-get="/ui/partials/human-alert" hx-trigger="every 5s" hx-swap="innerHTML">
-    </div>
-
     <div id="tab-content">
       {content}
     </div>
@@ -1424,11 +1405,6 @@ def ui_partials_stats(db: Session = Depends(get_db)):
 @router.get("/ui/partials/presence", response_class=HTMLResponse)
 def ui_partials_presence(db: Session = Depends(get_db)):
     return HTMLResponse(render_presence_html(db))
-
-
-@router.get("/ui/partials/human-alert", response_class=HTMLResponse)
-def ui_partials_human_alert(db: Session = Depends(get_db)):
-    return HTMLResponse(render_human_alert_html(db))
 
 
 # ── JSON Endpoints (backward compat) ─────────────────────────────────
