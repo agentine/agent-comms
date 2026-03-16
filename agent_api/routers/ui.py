@@ -529,7 +529,7 @@ def render_dashboard_tab(db: Session) -> str:
     else:
         journal_items = '<div class="text-sm text-[#a1a1aa] py-4 text-center">No journal entries</div>'
 
-    journal_widget = f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-4 lg:col-span-2">
+    journal_widget = f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-4">
   <div class="flex justify-between items-center mb-3">
     <h2 class="text-sm font-medium text-[#fafafa]">Recent Journal</h2>
     <a hx-get="/ui/journal" hx-target="#tab-content" hx-push-url="true"
@@ -538,11 +538,54 @@ def render_dashboard_tab(db: Session) -> str:
   {journal_items}
 </div>"""
 
+    # Recent runs widget
+    from agent_api.database import runs as runs_table
+    recent_runs = db.execute(
+        select(runs_table).order_by(runs_table.c.started_at.desc()).limit(5)
+    ).fetchall()
+
+    if recent_runs:
+        run_items = []
+        for row in recent_runs:
+            m = row._mapping
+            is_running = m["finished_at"] is None
+            dot = '<span class="w-2 h-2 rounded-full bg-[#22c55e] shadow-[0_0_4px_#22c55e] shrink-0"></span>' if is_running else '<span class="w-2 h-2 rounded-full bg-[#71717a] shrink-0"></span>'
+            if m["exit_code"] is not None and m["exit_code"] != 0:
+                dot = '<span class="w-2 h-2 rounded-full bg-[#ef4444] shrink-0"></span>'
+            proj = f'<span class="text-[#52525b]">{esc(m["project"])}</span>' if m["project"] else ""
+            cost = f'<span class="text-[#4ade80] text-xs">${esc(m["cost_usd"])}</span>' if m["cost_usd"] else ""
+            dur = _format_duration(m["duration_seconds"])
+            run_items.append(
+                f'<div class="flex items-center gap-3 py-2 border-b border-[#27272a] last:border-b-0">'
+                f'{dot}'
+                f'<span class="text-sm font-medium">{esc(m["agent"])}</span>'
+                f'{proj}'
+                f'<span class="text-xs text-[#52525b]">{esc(m["model"])}</span>'
+                f'<span class="ml-auto flex items-center gap-3">'
+                f'<span class="text-xs text-[#52525b] tabular-nums">{dur}</span>'
+                f'{cost}'
+                f'<span class="text-xs text-[#52525b]">{time_ago(m["started_at"])}</span>'
+                f'</span></div>'
+            )
+        runs_html = "".join(run_items)
+    else:
+        runs_html = '<div class="text-sm text-[#a1a1aa] py-4 text-center">No runs yet</div>'
+
+    runs_widget = f"""<div class="bg-[#0c0c0e] border border-[#27272a] rounded-lg p-4">
+  <div class="flex justify-between items-center mb-3">
+    <h2 class="text-sm font-medium text-[#fafafa]">Recent Runs</h2>
+    <a hx-get="/ui/runs" hx-target="#tab-content" hx-push-url="true"
+       class="text-xs text-[#71717a] cursor-pointer hover:text-[#fafafa] transition-colors">View all &rarr;</a>
+  </div>
+  {runs_html}
+</div>"""
+
     return f"""<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
   {human_banner}
   {tasks_widget}
   {agents_widget}
   {journal_widget}
+  {runs_widget}
 </div>"""
 
 
@@ -638,8 +681,11 @@ def render_projects_tab(db: Session, search: str, status: str, language: str, of
     params = dict(search=search, status=status, language=language)
     pager_html = render_pager("p", path, offset, total, **params)
 
-    return f"""{filters_html}
-<div class="text-sm text-[#a1a1aa] mb-3">{total} {"item" if total == 1 else "items"}</div>
+    return f"""<div class="flex items-center justify-between mb-4">
+  <h2 class="text-lg font-semibold">Projects</h2>
+  <span class="text-xs text-[#52525b] tabular-nums">{total} {"item" if total == 1 else "items"}</span>
+</div>
+{filters_html}
 {list_html}
 {pager_html}"""
 
@@ -754,8 +800,11 @@ def render_tasks_tab(
     params = dict(search=search, username=username, project=project, status=status, priority=priority, sort=sort)
     pager_html = render_pager("t", path, offset, total, **params)
 
-    return f"""{filters_html}
-<div class="text-sm text-[#a1a1aa] mb-3">{total} {"item" if total == 1 else "items"}</div>
+    return f"""<div class="flex items-center justify-between mb-4">
+  <h2 class="text-lg font-semibold">Tasks</h2>
+  <span class="text-xs text-[#52525b] tabular-nums">{total} {"item" if total == 1 else "items"}</span>
+</div>
+{filters_html}
 {items_html}
 {pager_html}"""
 
@@ -826,8 +875,11 @@ def render_journal_tab(
     params = dict(search=search, username=username, project=project, sort=sort)
     pager_html = render_pager("j", path, offset, total, **params)
 
-    return f"""{filters_html}
-<div class="text-sm text-[#a1a1aa] mb-3">{total} {"item" if total == 1 else "items"}</div>
+    return f"""<div class="flex items-center justify-between mb-4">
+  <h2 class="text-lg font-semibold">Journal</h2>
+  <span class="text-xs text-[#52525b] tabular-nums">{total} {"item" if total == 1 else "items"}</span>
+</div>
+{filters_html}
 {items_html}
 {pager_html}"""
 
@@ -960,8 +1012,11 @@ def render_runs_tab(
     params = dict(agent=agent, project=project, sort=sort)
     pager_html = render_pager("r", path, offset, total, **params)
 
-    return f"""{filters_html}
-<div class="text-sm text-[#a1a1aa] mb-3">{total} {"run" if total == 1 else "runs"}</div>
+    return f"""<div class="flex items-center justify-between mb-4">
+  <h2 class="text-lg font-semibold">Runs</h2>
+  <span class="text-xs text-[#52525b] tabular-nums">{total} {"run" if total == 1 else "runs"}</span>
+</div>
+{filters_html}
 {list_html}
 {pager_html}"""
 
@@ -998,9 +1053,12 @@ def render_keys_tab(db: Session, api_key: str) -> str:
     else:
         items_html = f'<div class="flex flex-col items-center justify-center py-16 text-[#a1a1aa]">{ICONS["inbox"]}<div class="mt-3 text-sm font-medium">No API keys</div><div class="text-xs mt-1">Auth is currently disabled (open access)</div></div>'
 
-    return f"""{btn}
+    return f"""<div class="flex items-center justify-between mb-4">
+  <h2 class="text-lg font-semibold">API Keys</h2>
+  <span class="text-xs text-[#52525b] tabular-nums">{total} {"key" if total == 1 else "keys"}</span>
+</div>
+{btn}
 <div id="key-banner"></div>
-<div class="text-sm text-[#a1a1aa] mb-3">{total} {"key" if total == 1 else "keys"}</div>
 {items_html}"""
 
 
@@ -1088,7 +1146,7 @@ def render_presence_html(db: Session) -> str:
 # ── Sidebar Navigation ───────────────────────────────────────────────
 
 
-def render_sidebar_nav(active: str) -> str:
+def render_sidebar_nav(active: str, human_count: int = 0) -> str:
     tabs_def = [
         ("dashboard", "Dashboard", ICONS["dashboard"]),
         ("projects", "Projects", ICONS["folder"]),
@@ -1103,17 +1161,21 @@ def render_sidebar_nav(active: str) -> str:
             active_cls = "bg-[#18181b] text-[#fafafa] border-l-2 border-l-[#3b82f6]"
         else:
             active_cls = "text-[#71717a] hover:text-[#fafafa] hover:bg-[#18181b] border-l-2 border-l-transparent"
+        badge = ""
+        if tab_id == "tasks" and human_count > 0:
+            badge = f'<span class="ml-auto bg-[#ef4444] text-white text-[10px] font-medium rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{human_count}</span>'
         items.append(
             f'<a class="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium {active_cls}'
             f' transition-colors cursor-pointer no-underline"'
             f' hx-get="/ui/{tab_id}" hx-target="#tab-content" hx-push-url="true">'
-            f'{icon}<span>{label}</span></a>'
+            f'{icon}<span class="flex-1">{label}</span>{badge}</a>'
         )
     return "\n    ".join(items)
 
 
-def render_sidebar_nav_oob(active: str) -> str:
-    return f'<nav id="sidebar-nav" class="flex-1 px-3 py-4 space-y-1 overflow-y-auto" hx-swap-oob="innerHTML">{render_sidebar_nav(active)}</nav>'
+def render_sidebar_nav_oob(active: str, db: Session | None = None) -> str:
+    human_count = _human_task_count(db) if db else 0
+    return f'<nav id="sidebar-nav" class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto" hx-swap-oob="innerHTML">{render_sidebar_nav(active, human_count)}</nav>'
 
 
 # ── Shell & Landing Page ─────────────────────────────────────────────
@@ -1341,6 +1403,52 @@ async function submitNewKey() {
     alert('Failed to create key: ' + e.message);
   }
 }
+// Loading bar
+(function() {
+  var bar = null;
+  document.addEventListener('htmx:beforeRequest', function() {
+    bar = document.getElementById('loading-bar');
+    if (bar) { bar.style.width = '70%'; bar.classList.add('active'); }
+  });
+  document.addEventListener('htmx:afterSettle', function() {
+    bar = document.getElementById('loading-bar');
+    if (bar) { bar.style.width = '100%'; setTimeout(function() { bar.classList.remove('active'); bar.style.width = '0'; }, 200); }
+  });
+  document.addEventListener('htmx:responseError', function() {
+    bar = document.getElementById('loading-bar');
+    if (bar) { bar.style.background = '#ef4444'; bar.style.width = '100%'; setTimeout(function() { bar.classList.remove('active'); bar.style.width = '0'; bar.style.background = '#3b82f6'; }, 1000); }
+  });
+})();
+
+// Client-side relative timestamp updates
+setInterval(function() {
+  document.querySelectorAll('.timestamp[data-ts]').forEach(function(el) {
+    var ts = el.dataset.ts;
+    if (!ts) return;
+    try {
+      var dt = new Date(ts.replace('Z', '+00:00'));
+      var diff = (Date.now() - dt.getTime()) / 1000;
+      var txt;
+      if (diff < 60) txt = 'just now';
+      else if (diff < 3600) txt = Math.floor(diff / 60) + 'm ago';
+      else if (diff < 86400) txt = Math.floor(diff / 3600) + 'h ago';
+      else txt = Math.floor(diff / 86400) + 'd ago';
+      el.textContent = txt;
+    } catch(e) {}
+  });
+}, 60000);
+
+// Auto-refresh tab content every 30s (skip if user is typing)
+setInterval(function() {
+  var ae = document.activeElement;
+  if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return;
+  var tc = document.getElementById('tab-content');
+  if (tc) {
+    var url = window.location.pathname + window.location.search;
+    htmx.ajax('GET', url, {target: '#tab-content', swap: 'innerHTML'});
+  }
+}, 30000);
+
 async function revokeKey(id, name) {
   if (!confirm('Revoke key "' + name + '"? Any system using it will lose write access.')) return;
   try {
@@ -1359,6 +1467,10 @@ async function revokeKey(id, name) {
 
 
 SHELL_CSS = """
+  /* Loading bar */
+  #loading-bar { position: fixed; top: 0; left: 0; height: 2px; background: #3b82f6; z-index: 9999; transition: width 300ms ease; width: 0; opacity: 0; }
+  #loading-bar.active { opacity: 1; }
+
   #tab-content { transition: opacity 150ms ease-in-out; }
   .htmx-swapping > #tab-content { opacity: 0; }
   .modal-enter { animation: fadeIn 150ms ease-out; }
@@ -1403,13 +1515,22 @@ SHELL_CSS = """
 """
 
 
-def render_shell(active_tab: str, content: str, stats_html: str, presence_html: str) -> str:
+def _human_task_count(db: Session) -> int:
+    return db.execute(
+        select(func.count()).select_from(tasks)
+        .where(tasks.c.username == "human")
+        .where(tasks.c.status.in_(["pending", "in_progress", "blocked"]))
+    ).scalar() or 0
+
+
+def render_shell(active_tab: str, content: str, stats_html: str, presence_html: str, human_count: int = 0) -> str:
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Agent Comms</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%2309090b'/><circle cx='50' cy='50' r='20' fill='%233b82f6'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
@@ -1431,7 +1552,7 @@ def render_shell(active_tab: str, content: str, stats_html: str, presence_html: 
   </div>
 
   <nav id="sidebar-nav" class="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-    {render_sidebar_nav(active_tab)}
+    {render_sidebar_nav(active_tab, human_count)}
   </nav>
 
   <div class="px-3 py-3 border-t border-[#27272a]">
@@ -1462,6 +1583,9 @@ def render_shell(active_tab: str, content: str, stats_html: str, presence_html: 
 
 <!-- Overlay for mobile sidebar -->
 <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden" onclick="toggleSidebar()"></div>
+
+<!-- Loading bar -->
+<div id="loading-bar"></div>
 
 <!-- Main content -->
 <main class="lg:ml-60 min-h-screen transition-[margin] duration-200">
@@ -1543,10 +1667,10 @@ def ui_dashboard_page(
 ):
     content = render_dashboard_tab(db)
     if is_htmx(request):
-        return HTMLResponse(content + render_sidebar_nav_oob("dashboard"))
+        return HTMLResponse(content + render_sidebar_nav_oob("dashboard", db))
     stats_html = render_stats_html(db)
     presence_html = render_presence_html(db)
-    return HTMLResponse(render_shell("dashboard", content, stats_html, presence_html))
+    return HTMLResponse(render_shell("dashboard", content, stats_html, presence_html, _human_task_count(db)))
 
 
 @router.get("/ui/projects", response_class=HTMLResponse)
@@ -1560,10 +1684,10 @@ def ui_projects_page(
 ):
     content = render_projects_tab(db, search, status, language, offset)
     if is_htmx(request):
-        return HTMLResponse(content + render_sidebar_nav_oob("projects"))
+        return HTMLResponse(content + render_sidebar_nav_oob("projects", db))
     stats_html = render_stats_html(db)
     presence_html = render_presence_html(db)
-    return HTMLResponse(render_shell("projects", content, stats_html, presence_html))
+    return HTMLResponse(render_shell("projects", content, stats_html, presence_html, _human_task_count(db)))
 
 
 @router.get("/ui/tasks", response_class=HTMLResponse)
@@ -1580,10 +1704,10 @@ def ui_tasks_page(
 ):
     content = render_tasks_tab(db, search, username, project, status, priority, sort, offset)
     if is_htmx(request):
-        return HTMLResponse(content + render_sidebar_nav_oob("tasks"))
+        return HTMLResponse(content + render_sidebar_nav_oob("tasks", db))
     stats_html = render_stats_html(db)
     presence_html = render_presence_html(db)
-    return HTMLResponse(render_shell("tasks", content, stats_html, presence_html))
+    return HTMLResponse(render_shell("tasks", content, stats_html, presence_html, _human_task_count(db)))
 
 
 @router.get("/ui/journal", response_class=HTMLResponse)
@@ -1598,10 +1722,10 @@ def ui_journal_page(
 ):
     content = render_journal_tab(db, search, username, project, sort, offset)
     if is_htmx(request):
-        return HTMLResponse(content + render_sidebar_nav_oob("journal"))
+        return HTMLResponse(content + render_sidebar_nav_oob("journal", db))
     stats_html = render_stats_html(db)
     presence_html = render_presence_html(db)
-    return HTMLResponse(render_shell("journal", content, stats_html, presence_html))
+    return HTMLResponse(render_shell("journal", content, stats_html, presence_html, _human_task_count(db)))
 
 
 @router.get("/ui/runs", response_class=HTMLResponse)
@@ -1615,10 +1739,10 @@ def ui_runs_page(
 ):
     content = render_runs_tab(db, agent, project, sort, offset)
     if is_htmx(request):
-        return HTMLResponse(content + render_sidebar_nav_oob("runs"))
+        return HTMLResponse(content + render_sidebar_nav_oob("runs", db))
     stats_html = render_stats_html(db)
     presence_html = render_presence_html(db)
-    return HTMLResponse(render_shell("runs", content, stats_html, presence_html))
+    return HTMLResponse(render_shell("runs", content, stats_html, presence_html, _human_task_count(db)))
 
 
 @router.get("/ui/keys", response_class=HTMLResponse)
@@ -1629,11 +1753,11 @@ def ui_keys_page(
 ):
     content = render_keys_tab(db, x_api_key)
     if is_htmx(request):
-        return HTMLResponse(content + render_sidebar_nav_oob("keys"))
+        return HTMLResponse(content + render_sidebar_nav_oob("keys", db))
     # For direct navigation, wrap in shell; keys will re-fetch via htmx if key is in localStorage
     stats_html = render_stats_html(db)
     presence_html = render_presence_html(db)
-    shell = render_shell("keys", content, stats_html, presence_html)
+    shell = render_shell("keys", content, stats_html, presence_html, _human_task_count(db))
     # Inject a script to re-fetch keys with the stored API key
     reload_script = """<script>
 if (localStorage.getItem('agent_comms_api_key')) {
