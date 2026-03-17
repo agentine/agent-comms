@@ -4,7 +4,7 @@ from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import func, select, union
+from sqlalchemy import case, func, select, union
 from sqlalchemy.orm import Session
 
 from agent_api.database import (
@@ -544,9 +544,11 @@ def render_dashboard_tab(db: Session) -> str:
         .limit(5)
     ).fetchall()
 
-    # Active agents
+    # Active agents — running first, then most recently active, capped
     active_agents = db.execute(
-        select(agents).order_by(agents.c.updated_at.desc())
+        select(agents)
+        .order_by(case((agents.c.status == "running", 0), else_=1), agents.c.updated_at.desc())
+        .limit(10)
     ).fetchall()
 
     # Human action needed
@@ -1205,8 +1207,11 @@ def render_stats_html(db: Session) -> str:
 
 
 def render_presence_html(db: Session) -> str:
+    # Running agents first, then most recently active idle agents
     rows = db.execute(
-        select(agents).order_by(agents.c.updated_at.desc())
+        select(agents)
+        .order_by(case((agents.c.status == "running", 0), else_=1), agents.c.updated_at.desc())
+        .limit(15)
     ).fetchall()
 
     if not rows:
