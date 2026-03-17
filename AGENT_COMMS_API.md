@@ -1,15 +1,17 @@
 # Agent API Reference
 
-Base URL: `http://localhost:8000`
+Base URL: `http://localhost:8000` (development) or as configured via `API_URL`.
 
 ## Purpose
 
-Use this API to coordinate with other agents.
-- **Agents** — register yourself as running so others know you are active.
-- **Journal** — log observations, decisions, and progress notes.
+Coordinate work between agents.
+- **Journal** — log observations, decisions, and progress notes (shared memory).
 - **Tasks** — create and track units of work (like issues in a tracker).
+- **Projects** — register and track project lifecycle status.
+- **Agents** — presence registry (managed by the dispatcher, not by agents directly).
+- **Runs** — execution history for agent invocations.
 
-Write to the journal often. It is the shared memory between agents.
+**Important:** Agents must use MCP tools for all API interactions (see `AGENT_COMMS.md`). Do not call these endpoints directly. Do not manage your own agent presence — the dispatcher handles it.
 
 ---
 
@@ -34,7 +36,8 @@ POST /api/journal
 GET /api/journal
 GET /api/journal?username=x
 GET /api/journal?project=x
-GET /api/journal?username=x&project=x
+GET /api/journal?search=keyword
+GET /api/journal?sort=asc|desc
 GET /api/journal?limit=50&offset=0
 → 200: { "total": int, "items": [...] }
 ```
@@ -46,17 +49,15 @@ GET /api/journal?limit=50&offset=0
 ### When to use
 - You need to track a unit of work across time or hand it off.
 - You want another agent to pick something up.
-- You are checking what work is pending or in progress.
+- You are checking what work is pending, in progress, or blocked.
 
 ### Statuses
-
-Every task has a `status` field. Use it to communicate progress.
 
 | Status | Meaning |
 |---|---|
 | `pending` | Created but not yet started. **Default.** |
 | `in_progress` | Actively being worked on. |
-| `blocked` | Waiting on something else before it can continue. |
+| `blocked` | Waiting on something else. Set `blocked_at` and `blocked_reason`. |
 | `done` | Completed successfully. |
 | `cancelled` | Will not be done. Prefer this over deleting. |
 
@@ -71,7 +72,8 @@ Every task has a `status` field. Use it to communicate progress.
 POST /api/tasks
 { "username": "assignee", "project": "optional", "title": "short description",
   "description": "optional detail", "status": "pending", "priority": 1-5 }
-→ 201: { "id", "username", "project", "title", "description", "status", "priority", "created_at", "updated_at" }
+→ 201: { "id", "username", "project", "title", "description", "status", "priority",
+         "created_at", "updated_at", "blocked_at", "blocked_reason" }
 ```
 
 **List tasks**
@@ -80,10 +82,10 @@ GET /api/tasks
 GET /api/tasks?username=x
 GET /api/tasks?project=x
 GET /api/tasks?status=pending
-GET /api/tasks?status=in_progress
-GET /api/tasks?status=blocked
 GET /api/tasks?priority=5
-GET /api/tasks?username=x&project=x&status=pending
+GET /api/tasks?search=keyword
+GET /api/tasks?older_than=3h
+GET /api/tasks?sort=asc|desc
 GET /api/tasks?limit=50&offset=0
 → 200: { "total": int, "items": [...] }
 ```
@@ -97,7 +99,8 @@ GET /api/tasks/{id}
 **Update task**
 ```
 PATCH /api/tasks/{id}
-{ "title": "new title", "status": "in_progress", "priority": 5, "description": "updated" }  ← all optional
+{ "status": "blocked", "blocked_reason": "waiting on #123", "blocked_at": "2026-03-16T12:00:00Z" }
+← all fields optional
 → 200: updated task object
 ```
 
@@ -109,29 +112,72 @@ DELETE /api/tasks/{id}   ← only if created in error; prefer status: "cancelled
 
 ---
 
-## Agents (Presence)
-
-### When to use
-- You are starting a run and want other agents to know you are active.
-- You are finishing a run and want to signal you are idle.
-- You want to check which agents are currently running.
+## Projects
 
 ### Statuses
 
 | Status | Meaning |
 |---|---|
-| `running` | Agent is actively executing. **Default on register.** |
-| `idle` | Agent has finished its current run. |
+| `discovery` | Initial research phase. **Default.** |
+| `planning` | Architecture and plan being written. |
+| `development` | Code being implemented. |
+| `testing` | QA verification in progress. |
+| `documentation` | Docs and security audit in progress. |
+| `published` | Released to package registry. |
+| `cancelled` | Abandoned. |
 
 ### Endpoints
 
-**Register / heartbeat (upsert)**
+**Create project**
+```
+POST /api/projects
+{ "name": "project-name", "language": "python|go|node|rust",
+  "description": "optional", "status": "discovery" }
+→ 201: project object
+```
+
+**List projects**
+```
+GET /api/projects
+GET /api/projects?status=development
+GET /api/projects?language=python
+GET /api/projects?limit=100&offset=0
+→ 200: { "total": int, "items": [...] }
+```
+
+**Get one project**
+```
+GET /api/projects/{name}
+→ 200: project object | 404
+```
+
+**Update project**
+```
+PATCH /api/projects/{name}
+{ "status": "testing", "description": "updated" }
+→ 200: updated project object
+```
+
+**Delete project**
+```
+DELETE /api/projects/{name}
+→ 204 | 404
+```
+
+---
+
+## Agents (Presence)
+
+**Dispatcher-managed.** Agents should not register or deregister themselves. The dispatcher sets agents to `running` before invocation and `idle` after. You may read presence to check which agents are active.
+
+### Endpoints
+
+**Register / heartbeat (upsert)** — used by dispatcher only
 ```
 POST /api/agents
-{ "username": "your-name", "status": "running", "project": "optional" }
+{ "username": "agent-name", "status": "running", "project": "optional" }
 → 200: { "username", "status", "project", "started_at", "updated_at" }
 ```
-Calling this again with the same username updates `status`, `project`, and `updated_at`.
 
 **List agents**
 ```
@@ -147,10 +193,43 @@ GET /api/agents/{username}
 → 200: agent object | 404
 ```
 
-**Deregister**
+**Deregister** — used by dispatcher only
 ```
 DELETE /api/agents/{username}
 → 204 | 404
+```
+
+---
+
+## Runs
+
+Execution history for agent invocations. Managed by the dispatcher.
+
+### Endpoints
+
+**Create run**
+```
+POST /api/runs
+{ "agent": "developer", "backend": "claude", "model": "claude-opus-4-6",
+  "project": "optional", "started_at": "ISO8601" }
+→ 201: run object
+```
+
+**List runs**
+```
+GET /api/runs
+GET /api/runs?agent=developer
+GET /api/runs?project=x
+GET /api/runs?sort=asc|desc
+GET /api/runs?limit=50&offset=0
+→ 200: { "total": int, "items": [...] }
+```
+
+**Get / Update / Delete run**
+```
+GET /api/runs/{id}
+PATCH /api/runs/{id}
+DELETE /api/runs/{id}
 ```
 
 ---
@@ -159,7 +238,9 @@ DELETE /api/agents/{username}
 
 - `username`: required on all writes, 1–64 chars, no spaces.
 - `project`: optional, use to group related work.
-- `status`: one of `pending`, `in_progress`, `blocked`, `done`, `cancelled`. Default: `pending`.
+- `status` (tasks): one of `pending`, `in_progress`, `blocked`, `done`, `cancelled`. Default: `pending`.
 - `priority`: 1 (low) to 5 (high), default 1.
+- `blocked_at` / `blocked_reason`: set when changing status to `blocked`.
 - Lists return newest-first for journal, highest-priority-first for tasks.
 - Errors return `{ "detail": "message" }`.
+- All timestamps are ISO 8601 UTC.
