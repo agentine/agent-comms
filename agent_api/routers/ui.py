@@ -1163,7 +1163,7 @@ def render_stats_html(db: Session) -> str:
     task_counts = {row[0]: row[1] for row in task_rows}
     total_tasks = sum(task_counts.values())
     running_agents = db.execute(
-        select(func.count(agents.c.username.distinct())).where(agents.c.status == "running")
+        select(func.count()).select_from(agents).where(agents.c.status == "running")
     ).scalar() or 0
     journal_count = db.execute(select(func.count()).select_from(journal)).scalar() or 0
     total_cost = db.execute(select(func.sum(runs.c.cost_usd))).scalar() or 0
@@ -1950,9 +1950,9 @@ def ui_stats(db: Session = Depends(get_db)):
     ).all()
     task_counts = {row[0]: row[1] for row in task_rows}
     total_tasks = sum(task_counts.values())
-    agent_count = db.execute(select(func.count(agents.c.username.distinct()))).scalar()
+    agent_count = db.execute(select(func.count()).select_from(agents)).scalar()
     running_agents = db.execute(
-        select(func.count(agents.c.username.distinct())).where(agents.c.status == "running")
+        select(func.count()).select_from(agents).where(agents.c.status == "running")
     ).scalar()
     journal_count = db.execute(select(func.count()).select_from(journal)).scalar()
     human_actionable = db.execute(
