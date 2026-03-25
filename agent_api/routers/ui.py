@@ -4,7 +4,7 @@ from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import case, func, select, union
+from sqlalchemy import case, func, select, union, union_all
 from sqlalchemy.orm import Session
 
 from agent_api.database import (
@@ -355,7 +355,7 @@ def render_journal_detail(row) -> str:
 </div>"""
 
 
-def render_project_row(p, task_counts: dict, journal_count: int) -> str:
+def render_project_row(p, task_counts: dict, journal_count: int, last_activity: str | None = None) -> str:
     m = p._mapping
     tc = task_counts
     pend = tc.get("pending", 0)
@@ -416,7 +416,7 @@ def render_project_row(p, task_counts: dict, journal_count: int) -> str:
   <td class="px-2.5 py-2 border-b border-[#27272a] align-middle">{project_status_badge(m['status'])}</td>
   <td class="px-2.5 py-2 border-b border-[#27272a] align-middle">{tc_html}</td>
   <td class="px-2.5 py-2 border-b border-[#27272a] align-middle">{jc_html}</td>
-  <td class="px-2.5 py-2 border-b border-[#27272a] align-middle whitespace-nowrap">{time_tag(m['updated_at'])}</td>
+  <td class="px-2.5 py-2 border-b border-[#27272a] align-middle whitespace-nowrap">{time_tag(last_activity or m['updated_at'])}</td>
 </tr>"""
 
 
@@ -681,7 +681,22 @@ def render_dashboard_tab(db: Session) -> str:
 
 
 def render_projects_tab(db: Session, search: str, status: str, language: str, offset: int) -> str:
-    query = select(projects_table)
+    # Derive last activity per project from tasks, journal, agents, and runs
+    activity = union_all(
+        select(tasks.c.project.label("name"), tasks.c.updated_at.label("ts")).where(tasks.c.project.isnot(None)),
+        select(journal.c.project.label("name"), journal.c.created_at.label("ts")).where(journal.c.project.isnot(None)),
+        select(agents.c.project.label("name"), agents.c.updated_at.label("ts")).where(agents.c.project != ""),
+        select(runs.c.project.label("name"), func.coalesce(runs.c.finished_at, runs.c.started_at).label("ts")).where(runs.c.project.isnot(None)),
+    ).subquery()
+    last_activity = (
+        select(activity.c.name, func.max(activity.c.ts).label("last_activity"))
+        .group_by(activity.c.name)
+    ).subquery()
+
+    query = (
+        select(projects_table, last_activity.c.last_activity)
+        .outerjoin(last_activity, projects_table.c.name == last_activity.c.name)
+    )
     count_query = select(func.count()).select_from(projects_table)
 
     if status:
@@ -697,8 +712,9 @@ def render_projects_tab(db: Session, search: str, status: str, language: str, of
         count_query = count_query.where(cond)
 
     total = db.execute(count_query).scalar() or 0
+    sort_col = func.coalesce(last_activity.c.last_activity, projects_table.c.updated_at)
     rows = db.execute(
-        query.order_by(projects_table.c.updated_at.desc()).limit(PER_PAGE).offset(offset)
+        query.order_by(sort_col.desc()).limit(PER_PAGE).offset(offset)
     ).fetchall()
 
     project_names = [r._mapping["name"] for r in rows]
@@ -750,7 +766,7 @@ def render_projects_tab(db: Session, search: str, status: str, language: str, of
 
     if rows:
         table_rows = "".join(
-            render_project_row(r, task_counts_map.get(r._mapping["name"], {}), journal_counts_map.get(r._mapping["name"], 0))
+            render_project_row(r, task_counts_map.get(r._mapping["name"], {}), journal_counts_map.get(r._mapping["name"], 0), r._mapping.get("last_activity"))
             for r in rows
         )
         list_html = f"""<div class="overflow-x-auto">
@@ -761,7 +777,7 @@ def render_projects_tab(db: Session, search: str, status: str, language: str, of
       <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Status</th>
       <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Tasks</th>
       <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Journal</th>
-      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Updated</th>
+      <th class="text-left px-2.5 py-2 border-b-2 border-[#27272a] text-[#71717a] text-xs font-medium whitespace-nowrap">Last Activity</th>
     </tr></thead>
     <tbody>{table_rows}</tbody>
   </table>

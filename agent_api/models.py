@@ -173,6 +173,7 @@ class ProjectEntry(BaseModel):
     description: str | None
     created_at: str
     updated_at: str
+    last_activity: str | None = None
 
 
 class ProjectList(BaseModel):
